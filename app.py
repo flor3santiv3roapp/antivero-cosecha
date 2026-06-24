@@ -499,60 +499,133 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
             filtro_rut = st.text_input("🆔 Filtrar por RUT Cosechador (Opcional):", placeholder="Ej: 123456789", key="admin_audit_rut").strip().lower()
         
         # Construcción dinámica de la consulta a Firebase Cloud Firestore
+        # --- REEMPLAZAR DESDE AQUÍ EN TU PESTAÑA B ---
+        if "resultado_auditoria_nube" not in st.session_state:
+            st.session_state.resultado_auditoria_nube = []
+
         if st.button("🔍 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_audit", use_container_width=True, type="primary"):
             try:
-                # Definimos el rango del día seleccionado (desde las 00:00:00 hasta las 23:59:59)
                 inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min)
                 fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max)
                 
-                # Base de la consulta: Filtrar siempre por el rango de fecha seleccionado
-                query = db.collection("cosecha_diaria")\
-                          .where("FechaRegistro", ">=", inicio_dia)\
-                          .where("FechaRegistro", "<=", fin_dia)
-                
-                # Si el administrador además digitó un RUT, lo agregamos como filtro extra de cruce
+                query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
                 if filtro_rut:
-                    # Buscamos coincidencias con el RUT crudo (como digita el teclado táctil)
                     query = query.where("RutCosechador", "==", filtro_rut)
                 
-                # Ejecutamos el stream desde internet ordenando cronológicamente
                 docs_filtrados = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
-                lista_recolectas = [(doc.id, doc.to_dict()) for doc in docs_filtrados]
+                st.session_state.resultado_auditoria_nube = [(doc.id, doc.to_dict()) for doc in docs_filtrados]
                 
-                if not lista_recolectas:
-                    st.info(f"📋 No se encontraron registros en la nube para los criterios seleccionados.")
+                if not st.session_state.resultado_auditoria_nube:
+                    st.info("📋 No se encontraron registros en la nube para los criterios seleccionados.")
                 else:
-                    st.write(f"🔍 Se encontraron {len(lista_recolectas)} registros de cosecha:")
-                    
-                    # Desplegamos los registros encontrados en tarjetas independientes para editar
-                    for doc_id, datos in lista_recolectas:
-                        fecha_reg = datos.get("FechaRegistro")
-                        hora_str = fecha_reg.strftime("%H:%M:%S") if fecha_reg else "S/F"
-                        
-                        with st.container(border=True):
-                            c_info, c_edit, c_acc = st.columns([2, 1, 1])
-                            
-                            with c_info:
-                                st.markdown(f"👤 **Cosechador:** `{datos.get('RutCosechador')}`")
-                                st.markdown(f"🌸 **Flor:** {datos.get('DescripcionArticulo')} | 🕒 **Hora:** {hora_str}")
-                                st.caption(f"📍 Origen: {datos.get('CentroCosto')} | ID: {doc_id[:8]}...")
-                            
-                            with c_edit:
-                                nueva_cantidad = st.number_input(
-                                    "Varas:", min_value=0, 
-                                    value=int(datos.get("CantidadVaras", 0)), 
-                                    step=1, key=f"audit_mod_{doc_id}"
-                                )
-                            
-                            with c_acc:
-                                st.write("")
-                                if st.button("💾 Guardar", key=f"audit_btn_upd_{doc_id}", use_container_width=True):
-                                    db.collection("cosecha_diaria").document(doc_id).update({"CantidadVaras": int(nueva_cantidad)})
-                                    st.success("📝 Modificado")
-                                    st.rerun()
-                                if st.button("🚨 Borrar", key=f"audit_btn_del_{doc_id}", use_container_width=True, type="secondary"):
-                                    db.collection("cosecha_diaria").document(doc_id).delete()
-                                    st.success("🗑️ Borrado")
-                                    st.rerun()
+                    st.rerun()
             except Exception as e:
                 st.error(f"❌ Error al consultar la base de datos: {e}")
+
+        if st.session_state.resultado_auditoria_nube:
+            st.write(f"🔍 Se encontraron {len(st.session_state.resultado_auditoria_nube)} registros:")
+            
+            for doc_id, datos in st.session_state.resultado_auditoria_nube:
+                fecha_reg = datos.get("FechaRegistro")
+                if isinstance(fecha_reg, datetime.datetime):
+                    hora_str = fecha_reg.strftime("%H:%M:%S")
+                elif hasattr(fecha_reg, "to_datetime"):
+                    hora_str = fecha_reg.to_datetime().strftime("%H:%M:%S")
+                else:
+                    hora_str = "S/F"
+                
+                with st.container(border=True):
+                    c_info, c_edit, c_acc = st.columns([1.5, 1, 1])
+                    
+                    with c_info:
+                        st.markdown(f"👤 **Cosechador:** `{datos.get('RutCosechador')}`")
+                        st.markdown(f"🌸 **Flor:** {datos.get('DescripcionArticulo')} | 🕒 **Hora:** {hora_str}")
+                        st.caption(f"📍 Origen: {datos.get('CentroCosto')} | ID: {doc_id[:8]}...")
+                    
+                    with c_edit:
+                        nueva_cantidad = st.number_input(
+                            "Varas:", min_value=0, 
+                            value=int(datos.get("CantidadVaras", 0)), 
+                            step=1, key=f"audit_mod_{doc_id}"
+                        )
+                    
+                    with c_acc:
+                        st.write("")
+                        if st.button("💾 Guardar", key=f"audit_btn_upd_{doc_id}", use_container_width=True):
+                            try:
+                                db.collection("cosecha_diaria").document(doc_id).update({"CantidadVaras": int(nueva_cantidad)})
+                                st.session_state.resultado_auditoria_nube = [] 
+                                st.success("📝 ¡Registro modificado!")
+                                st.rerun()
+                            except Exception as ex:
+                                st.error(f"Error: {ex}")
+                                
+                        if st.button("🚨 Borrar", key=f"audit_btn_del_{doc_id}", use_container_width=True, type="secondary"):
+                            try:
+                                db.collection("cosecha_diaria").document(doc_id).delete()
+                                st.session_state.resultado_auditoria_nube = [] 
+                                st.success("🗑️ Registro eliminado.")
+                                st.rerun()
+                            except Exception as ex:
+                                st.error(f"Error: {ex}")
+
+        # ==================================================================
+        # E. PANEL DE CONFIGURACIÓN DEL CATÁLOGO (BLOQUE COMPLETO UNIFICADO)
+        # ==================================================================
+        st.write("---")
+        st.markdown("<h2 style='color:#38bdf8;'>⚙️ Panel de Configuración del Catálogo</h2>", unsafe_allow_html=True)
+        st.caption("Agregue nuevos orígenes, contratistas o variedades de flores directamente a la base de datos.")
+        
+        # Declaramos las tres sub-pestañas juntas en una sola línea para evitar NameError
+        s_cc, s_b2b, s_flores = st.tabs(["📍 Centros de Costo", "🏢 Contratistas B2B", "🌹 Flores y Variedades"])
+        
+        # A. AGREGAR NUEVO CENTRO DE COSTO
+        with s_cc:
+            with st.form("form_add_cc", clear_on_submit=True):
+                nuevo_cc_nombre = st.text_input("Nombre del nuevo Centro de Costo:", placeholder="Ej: Fundo El Quillay (CC 03)").strip()
+                if st.form_submit_button("💾 Registrar Centro de Costo", use_container_width=True):
+                    if nuevo_cc_nombre:
+                        try:
+                            db.collection("config_centros").add({"nombre": nuevo_cc_nombre, "fecha_creacion": datetime.datetime.now()})
+                            st.success(f"✅ Centro de Costo '{nuevo_cc_nombre}' inyectado a Firebase.")
+                        except Exception as e:
+                            st.error(f"❌ Error en la nube: {e}")
+                    else:
+                        st.warning("⚠️ El campo de nombre no puede estar vacío.")
+
+        # B. AGREGAR NUEVO CONTRATISTA DESTINO
+        with s_b2b:
+            with st.form("form_add_contratista", clear_on_submit=True):
+                new_rut_b2b = st.text_input("RUT Contratista (Con puntos y guión):", placeholder="Ej: 76.888.999-K").strip()
+                new_nom_b2b = st.text_input("Razón Social / Nombre Contratista:", placeholder="Ej: Cosechas del Valle SpA").strip()
+                if st.form_submit_button("💾 Registrar Contratista B2B", use_container_width=True):
+                    if new_rut_b2b and new_nom_b2b:
+                        try:
+                            cadena_kame = f"{new_rut_b2b} | {new_nom_b2b}"
+                            db.collection("config_contratistas").add({"formato_kame": cadena_kame, "fecha_creacion": datetime.datetime.now()})
+                            st.success(f"✅ Contratista '{cadena_kame}' configurado para Kame ERP.")
+                        except Exception as e:
+                            st.error(f"❌ Error en la nube: {e}")
+                    else:
+                        st.warning("⚠️ Ambos campos son obligatorios.")
+        # C. AGREGAR NUEVA FLOR Y VARIEDAD AL CATÁLOGO
+        with s_flores:
+            with st.form("form_add_flor_catalogo", clear_on_submit=True):
+                nueva_familia = st.selectbox("Seleccione Familia Agrícola:", ["🌹 Rosas", "🌸 Peonías", "🔹 Delphinium", "💐 Lisianthus", "🌾 Otras Variedades"], key="admin_add_fam_select")
+                nuevo_cod_flor = st.number_input("Código de Artículo único (Kame ERP):", min_value=1, value=225, step=1, key="admin_add_cod_int")
+                nuevo_nom_flor = st.text_input("Nombre de la Variedad / Color:", placeholder="Ej: Red Naomi o Coral Sunset").strip()
+                
+                if st.form_submit_button("💾 Registrar Flor en el Catálogo", use_container_width=True):
+                    if nuevo_nom_flor and nuevo_cod_flor:
+                        try:
+                            db.collection("config_flores").add({
+                                "familia": nueva_familia,
+                                "codigo": int(nuevo_cod_flor),
+                                "nombre": nuevo_nom_flor,
+                                "fecha_creacion": datetime.datetime.now()
+                            })
+                            st.success(f"✅ ¡Variedad '{nuevo_nom_flor}' (Cód: {nuevo_cod_flor}) añadida con éxito!")
+                        except Exception as e:
+                            st.error(f"❌ Error al inyectar flor en la nube: {e}")
+                    else:
+                        st.warning("⚠️ El nombre de la variedad y el código son obligatorios.")

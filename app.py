@@ -6,25 +6,24 @@ from firebase_admin import credentials, firestore
 import json
 
 # ==================================================================
-# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (SECRETS)
+# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (TOML NATIVO)
 # ==================================================================
 if not firebase_admin._apps:
     try:
-        # Intentamos leer primero desde los Secrets en la nube (Producción)
+        # Verificamos si el diccionario estructurado en TOML existe en los Secrets de la nube
         if "text_key" in st.secrets:
-            # Convertimos el texto JSON seguro en un diccionario de Python
-            firebase_info = json.loads(st.secrets["text_key"])
+            # Streamlit lee el bloque [text_key] directamente como un diccionario de Python
+            firebase_info = dict(st.secrets["text_key"])
             cred = credentials.Certificate(firebase_info)
             firebase_admin.initialize_app(cred)
-        # Si no existe (como en tu PC local), busca el archivo local
         else:
+            # Respaldos exclusivos para tu entorno local en tu PC de desarrollo
             cred = credentials.Certificate("llave_firebase.json")
             firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"❌ Error crítico al cargar las credenciales de Firebase: {e}")
 
 db = firestore.client()
-
 
 # ==================================================================
 # 2. CONFIGURACIÓN VISUAL (Tu Paleta de Colores Oscura Original)

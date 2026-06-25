@@ -3,18 +3,28 @@ import pandas as pd
 import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+import json
 
 # ==================================================================
-# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD
+# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (SECRETS)
 # ==================================================================
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate("llave_firebase.json")
-        firebase_admin.initialize_app(cred)
+        # Intentamos leer primero desde los Secrets en la nube (Producción)
+        if "text_key" in st.secrets:
+            # Convertimos el texto JSON seguro en un diccionario de Python
+            firebase_info = json.loads(st.secrets["text_key"])
+            cred = credentials.Certificate(firebase_info)
+            firebase_admin.initialize_app(cred)
+        # Si no existe (como en tu PC local), busca el archivo local
+        else:
+            cred = credentials.Certificate("llave_firebase.json")
+            firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"❌ Error crítico al cargar las credenciales de Firebase: {e}")
 
 db = firestore.client()
+
 
 # ==================================================================
 # 2. CONFIGURACIÓN VISUAL (Tu Paleta de Colores Oscura Original)

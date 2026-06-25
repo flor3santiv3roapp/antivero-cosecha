@@ -1,29 +1,37 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import zoneinfo
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
 
 # ==================================================================
-# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (TOML NATIVO)
+# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (HÍBRIDA)
 # ==================================================================
 if not firebase_admin._apps:
     try:
-        # Verificamos si el diccionario estructurado en TOML existe en los Secrets de la nube
+        # A. INTENTAMOS LEER PRIMERO LOS SECRETS DE LA NUBE (PRODUCCIÓN)
         if "text_key" in st.secrets:
-            # Streamlit lee el bloque [text_key] directamente como un diccionario de Python
             firebase_info = dict(st.secrets["text_key"])
             cred = credentials.Certificate(firebase_info)
             firebase_admin.initialize_app(cred)
+            
+        # B. SI NO HAY SECRETS (COMO EN TU PC), BUSCA EL ARCHIVO LOCAL (DESARROLLO)
         else:
-            # Respaldos exclusivos para tu entorno local en tu PC de desarrollo
             cred = credentials.Certificate("llave_firebase.json")
             firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"❌ Error crítico al cargar las credenciales de Firebase: {e}")
+            
+    except Exception as e_secrets:
+        # C. RESPALDO CRÍTICO SI LA CONDICIÓN DE SECRETS ARROJA "NO SECRETS FOUND"
+        try:
+            cred = credentials.Certificate("llave_firebase.json")
+            firebase_admin.initialize_app(cred)
+        except Exception as e_local:
+            st.error(f"❌ Error crítico al cargar credenciales de Firebase: {e_local}")
 
 db = firestore.client()
+
 
 # ==================================================================
 # 2. CONFIGURACIÓN VISUAL (Tu Paleta de Colores Oscura Original)
@@ -105,11 +113,27 @@ st.html("""
 """)
 
 
-hora_actual = datetime.datetime.now().strftime("%H:%M")
+import zoneinfo
+
+# ==================================================================
+# CONFIGURACIÓN DEL ENCABEZADO CON FECHA Y HORA OFICIAL DE CHILE
+# ==================================================================
+# Forzamos al sistema a leer el huso horario de Santiago de Chile (CLT UTC-4)
+zona_chile = zoneinfo.ZoneInfo("America/Santiago")
+ahora_chile = datetime.datetime.now(zona_chile)
+
+# Formateamos de manera estética para el mesón de terreno
+hora_actual = ahora_chile.strftime("%H:%M")
+fecha_actual = ahora_chile.strftime("%d/%m/%Y")
+
+# Renderizamos el navbar con tu paleta oscura y la fecha agregada
 st.html(f"""
     <div class="antivero-header">
-        <h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
-        <div style="font-weight: bold; color: #94a3b8;">🕒 {hora_actual}</div>
+        <div>
+            <h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
+            <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">📅 Fecha de Campo: {fecha_actual}</div>
+        </div>
+        <div style="font-weight: bold; font-size: 24px; color: #38bdf8;">🕒 {hora_actual}</div>
     </div>
 """)
 

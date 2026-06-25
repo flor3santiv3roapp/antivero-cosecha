@@ -138,15 +138,18 @@ if not st.session_state.usuario_conectado:
         if st.button("🚀 Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
             if input_usuario and input_clave:
                 try:
-                    # VALIDACIÓN HISTÓRICA CONTRA CLOUD FIRESTORE
                     user_ref = db.collection("usuarios").document(input_usuario).get()
                     if user_ref.exists:
                         datos_user = user_ref.to_dict()
                         if datos_user.get("password") == input_clave:
+                            # CAMBIO CRÍTICO PARA LA NUBE: Guardamos los estados directo antes del quiebre
                             st.session_state.usuario_conectado = True
                             st.session_state.rol_usuario = datos_user.get("rol", "operario")
                             st.session_state.id_usuario_activo = input_usuario
                             st.success(f"🔓 Acceso concedido como: {st.session_state.rol_usuario.upper()}")
+                            
+                            # Quiebre de bucle seguro para evitar el congelamiento asíncrono en celulares/tablets
+                            st.fragment(lambda: None)
                             st.rerun()
                         else:
                             st.error("❌ La contraseña ingresada es incorrecta.")
@@ -156,6 +159,7 @@ if not st.session_state.usuario_conectado:
                     st.error(f"⚠️ Error de conexión con el servidor de Google: {e}")
             else:
                 st.warning("⚠️ Por favor, complete ambos campos.")
+
         
         # --- SUB-MÓDULO DE RECUPERACIÓN SEGURO E HÍBRIDO ---
         st.write("---")

@@ -93,9 +93,30 @@ st.html("""
             margin-bottom: 10px;
         }
         
+        /* 🚨 REGLAS CRÍTICAS PARA VISIBILIDAD DE BOTONES TÁCTILES EN TABLETS 🚨 */
+        div[data-testid="stButton"] button {
+            background-color: var(--panel-bg) !important;
+            color: var(--text-light) !important;
+            border: 1px solid var(--border-color) !important;
+            font-weight: bold !important;
+            font-size: 15px !important;
+        }
+        /* Fuerza a que los botones mantengan el texto blanco brillante aun si no hay mouse */
+        div[data-testid="stButton"] button p {
+            color: var(--text-light) !important;
+        }
+        /* Color especial de realce azul celeste cuando el operario sí lo presione en el mesón */
+        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus {
+            background-color: var(--accent-blue) !important;
+            color: var(--bg-dark) !important;
+            border-color: var(--accent-blue) !important;
+        }
+        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p {
+            color: var(--bg-dark) !important;
+        }
+        
         /* 📱 RESPONSIVIDAD DINÁMICA: DETECTA CELULAR VERTICAL O GIROS EN TERRENO */
         @media (max-width: 768px) {
-            /* Fuerza a las columnas side-by-side a tomar el 100% del ancho para no achicarse */
             [data-testid="stHorizontalBlock"] {
                 flex-direction: column !important;
             }
@@ -104,7 +125,6 @@ st.html("""
                 margin-left: 0 !important;
                 margin-bottom: 15px !important;
             }
-            /* Agrandamos levemente los textos de los encabezados para móviles */
             .antivero-header h1 {
                 font-size: 18px;
             }
@@ -112,8 +132,6 @@ st.html("""
     </style>
 """)
 
-
-import zoneinfo
 
 # ==================================================================
 # CONFIGURACIÓN DEL ENCABEZADO CON FECHA Y HORA OFICIAL DE CHILE
@@ -525,29 +543,32 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
         st.markdown("<h2 style='color:#38bdf8;'>📊 Ventana de Auditoría y Control de Registros</h2>", unsafe_allow_html=True)
         st.caption("Espacio exclusivo para administradores. Filtre por día, por RUT o combine ambos para auditar Google Firebase.")
         
-        # Filtros superiores organizados en dos columnas táctiles
+        # 1. FILTROS SUPERIORES (DECLARADOS FUERA DE CUALQUIER TRY)
         col_filtro_fecha, col_filtro_rut = st.columns(2)
         
         with col_filtro_fecha:
-            # Selector de fecha nativo que por defecto viene con el día de hoy
             filtro_fecha = st.date_input("📅 Filtrar por Día:", value=datetime.date.today(), key="admin_audit_date")
+            historico_completo = st.checkbox("🔄 Ignorar fecha y buscar historial completo", value=False, key="chk_audit_hist")
             
         with col_filtro_rut:
             filtro_rut = st.text_input("🆔 Filtrar por RUT Cosechador (Opcional):", placeholder="Ej: 123456789", key="admin_audit_rut").strip().lower()
         
-        # Construcción dinámica de la consulta a Firebase Cloud Firestore
-        # --- REEMPLAZAR DESDE AQUÍ EN TU PESTAÑA B ---
         if "resultado_auditoria_nube" not in st.session_state:
             st.session_state.resultado_auditoria_nube = []
 
+        # 2. BOTÓN DE EJECUCIÓN CON SU ESTRUCTURA TRY-EXCEPT PROPIA Y CERRADA
         if st.button("🔍 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_audit", use_container_width=True, type="primary"):
             try:
-                inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min)
-                fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max)
+                inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+                fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
                 
-                query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                if filtro_rut:
-                    query = query.where("RutCosechador", "==", filtro_rut)
+                # Definición dinámica de la consulta según el checkbox
+                if historico_completo and filtro_rut:
+                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", filtro_rut)
+                elif filtro_rut:
+                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", filtro_rut).where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                else:
+                    query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
                 
                 docs_filtrados = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                 st.session_state.resultado_auditoria_nube = [(doc.id, doc.to_dict()) for doc in docs_filtrados]
@@ -559,15 +580,16 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
             except Exception as e:
                 st.error(f"❌ Error al consultar la base de datos: {e}")
 
+        # 3. INTERFAZ DE TARJETAS DE EDICIÓN (MEMORIA PERSISTENTE)
         if st.session_state.resultado_auditoria_nube:
             st.write(f"🔍 Se encontraron {len(st.session_state.resultado_auditoria_nube)} registros:")
             
             for doc_id, datos in st.session_state.resultado_auditoria_nube:
                 fecha_reg = datos.get("FechaRegistro")
                 if isinstance(fecha_reg, datetime.datetime):
-                    hora_str = fecha_reg.strftime("%H:%M:%S")
+                    hora_str = fecha_reg.strftime("%d/%m %H:%M")
                 elif hasattr(fecha_reg, "to_datetime"):
-                    hora_str = fecha_reg.to_datetime().strftime("%H:%M:%S")
+                    hora_str = fecha_reg.to_datetime().strftime("%d/%m %H:%M")
                 else:
                     hora_str = "S/F"
                 
@@ -576,15 +598,11 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                     
                     with c_info:
                         st.markdown(f"👤 **Cosechador:** `{datos.get('RutCosechador')}`")
-                        st.markdown(f"🌸 **Flor:** {datos.get('DescripcionArticulo')} | 🕒 **Hora:** {hora_str}")
+                        st.markdown(f"🌸 **Flor:** {datos.get('DescripcionArticulo')} | 🕒 **Fecha/Hora:** {hora_str}")
                         st.caption(f"📍 Origen: {datos.get('CentroCosto')} | ID: {doc_id[:8]}...")
                     
                     with c_edit:
-                        nueva_cantidad = st.number_input(
-                            "Varas:", min_value=0, 
-                            value=int(datos.get("CantidadVaras", 0)), 
-                            step=1, key=f"audit_mod_{doc_id}"
-                        )
+                        nueva_cantidad = st.number_input("Varas:", min_value=0, value=int(datos.get("CantidadVaras", 0)), step=1, key=f"audit_mod_{doc_id}")
                     
                     with c_acc:
                         st.write("")
@@ -645,24 +663,170 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             st.error(f"❌ Error en la nube: {e}")
                     else:
                         st.warning("⚠️ Ambos campos son obligatorios.")
-        # C. AGREGAR NUEVA FLOR Y VARIEDAD AL CATÁLOGO
+        # C. AGREGAR NUEVA FLOR Y VARIEDAD AL CATÁLOGO (ESCRITURA LIBRE)
         with s_flores:
-            with st.form("form_add_flor_catalogo", clear_on_submit=True):
-                nueva_familia = st.selectbox("Seleccione Familia Agrícola:", ["🌹 Rosas", "🌸 Peonías", "🔹 Delphinium", "💐 Lisianthus", "🌾 Otras Variedades"], key="admin_add_fam_select")
-                nuevo_cod_flor = st.number_input("Código de Artículo único (Kame ERP):", min_value=1, value=225, step=1, key="admin_add_cod_int")
-                nuevo_nom_flor = st.text_input("Nombre de la Variedad / Color:", placeholder="Ej: Red Naomi o Coral Sunset").strip()
+            with st.form("form_add_flor_catalogo_libre", clear_on_submit=True):
+                # Cambiamos el selectbox antiguo por un campo de texto de escritura libre
+                nueva_familia_libre = st.text_input(
+                    "Escribe la Familia Agrícola / Especie:", 
+                    placeholder="Ej: Rosas, Peonías, Lisianthus, Lilium"
+                ).strip()
+                
+                nuevo_cod_flor = st.number_input(
+                    "Código de Artículo único (Kame ERP):", 
+                    min_value=1, 
+                    value=225, 
+                    step=1, 
+                    key="admin_add_cod_int"
+                )
+                
+                nuevo_nom_flor = st.text_input(
+                    "Nombre de la Variedad / Color:", 
+                    placeholder="Ej: Red Naomi, Coral Sunset, Blanca"
+                ).strip()
                 
                 if st.form_submit_button("💾 Registrar Flor en el Catálogo", use_container_width=True):
-                    if nuevo_nom_flor and nuevo_cod_flor:
+                    if nueva_familia_libre and nuevo_nom_flor and nuevo_cod_flor:
                         try:
                             db.collection("config_flores").add({
-                                "familia": nueva_familia,
+                                "familia": nueva_familia_libre,
                                 "codigo": int(nuevo_cod_flor),
                                 "nombre": nuevo_nom_flor,
-                                "fecha_creacion": datetime.datetime.now()
+                                "fecha_creacion": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
                             })
-                            st.success(f"✅ ¡Variedad '{nuevo_nom_flor}' (Cód: {nuevo_cod_flor}) añadida con éxito!")
+                            st.success(f"✅ ¡Variedad '{nuevo_nom_flor}' en familia '{nueva_familia_libre}' (Cód: {nuevo_cod_flor}) añadida!")
                         except Exception as e:
                             st.error(f"❌ Error al inyectar flor en la nube: {e}")
                     else:
-                        st.warning("⚠️ El nombre de la variedad y el código son obligatorios.")
+                        st.warning("⚠️ Todos los campos (Familia, Variedad y Código) son obligatorios.")
+
+        # ==================================================================
+        # F. SECCIÓN EXCLUSIVA: EXPORTACIÓN ERP Y VALES DE IMPRESIÓN (SEPARADOS)
+        # ==================================================================
+        st.write("---")
+        st.markdown("<h2 style='color:#38bdf8;'>📋 Exportación y Comprobantes de Cosecha</h2>", unsafe_allow_html=True)
+        st.caption("Herramientas exclusivas independientes para la gestión de planillas y emisión de vales diarios.")
+
+        # Definimos el rango del día seleccionado según los filtros máster superiores
+        inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+        fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+
+        col_admin_kame, col_admin_vale = st.columns(2)
+
+        # 📊 COLUMNA 1: EXPORTACIÓN REPOSITORIO KAME ERP
+        with col_admin_kame:
+            st.markdown("### 🏢 Planilla Contable")
+            st.caption("Consolida los pesajes del día seleccionado en el formato oficial de Kame ERP.")
+            
+            if st.button("📊 Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
+                try:
+                    query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                    if filtro_rut:
+                        query = query.where("RutCosechador", "==", filtro_rut)
+                    
+                    docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
+                    lista_datos = [doc.to_dict() for doc in docs]
+                    
+                    if not lista_datos:
+                        st.warning("⚠️ No se encontraron registros para la fecha o RUT seleccionado.")
+                    else:
+                        df_admin = pd.DataFrame(lista_datos)
+                        columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
+                        df_filtrado_kame = df_admin[columnas_kame]
+                        
+                        df_consolidado = df_filtrado_kame.groupby(
+                            ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"],
+                            as_index=False
+                        )["CantidadVaras"].sum()
+                        
+                        csv_kame = df_consolidado.to_csv(index=False, sep=";").encode('utf-8')
+                        st.success("✅ Planilla generada con éxito. Haz clic abajo para descargar:")
+                        st.download_button(
+                            label="📥 DESCARGAR ARCHIVO PARA KAME ERP",
+                            data=csv_kame,
+                            file_name=f"KAME_Cosecha_{filtro_fecha}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                except Exception as e:
+                    st.error(f"❌ Error al consolidar Kame: {e}")
+
+        # 🖨️ COLUMNA 2: GENERADOR DE VALE DE IMPRESIÓN CON BOTÓN IMPRIMIR AUTOMÁTICO
+        with col_admin_vale:
+            st.markdown("### 🖨️ Vale Físico de Cosecha")
+            st.caption("Genera y gatilla la impresión del comprobante de forma directa a la ticketera.")
+            
+            # Sub-columnas internas para alinear los dos botones táctiles uno al lado del otro
+            col_v_btn1, col_v_btn2 = st.columns(2)
+            
+            # Inicializamos variables para el renderizado del vale en el Session State
+            if "html_vale_actual" not in st.session_state:
+                st.session_state.html_vale_actual = ""
+            if "mostrar_trigger_impresion" not in st.session_state:
+                st.session_state.mostrar_trigger_impresion = False
+
+            with col_v_btn1:
+                if st.button("🧾 Generar Vista Previa", key="btn_vale_process", use_container_width=True):
+                    try:
+                        query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                        if filtro_rut:
+                            query = query.where("RutCosechador", "==", filtro_rut)
+                        
+                        docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
+                        lista_datos = [doc.to_dict() for doc in docs]
+                        
+                        if not lista_datos:
+                            st.warning("⚠️ No existen registros para emitir el comprobante.")
+                            st.session_state.html_vale_actual = ""
+                        else:
+                            df_admin = pd.DataFrame(lista_datos)
+                            df_vale = df_admin.groupby(["RutCosechador", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum()
+                            
+                            fecha_comprobante = filtro_fecha.strftime("%d/%m/%Y")
+                            rut_vale = filtro_rut.upper() if filtro_rut else "TODOS LOS COSECHADORES"
+                            
+                            filas_html = "".join([f"<tr><td style='padding:5px;'>{r['DescripcionArticulo']}</td><td style='text-align:right; font-weight:bold;'>{r['CantidadVaras']}</td></tr>" for _, r in df_vale.iterrows()])
+                            total_varas = df_vale["CantidadVaras"].sum()
+                            
+                            # Diseñamos el vale con una clase CSS especial para que la impresora ignore el resto de la app
+                            st.session_state.html_vale_actual = f"""
+                            <div id='seccion-imprimible-vale' style='background-color: white; color: black; padding: 20px; border: 1px solid #ccc; font-family: monospace; max-width: 100%; box-sizing: border-box; margin-bottom: 15px;'>
+                                <h3 style='text-align: center; margin: 0;'>FLORES ANTIVERO</h3>
+                                <p style='text-align: center; margin: 5px 0; font-size: 12px;'>COMPROBANTE DE COSECHA DIARIA</p>
+                                <hr style='border-top: 1px dashed black;'>
+                                <p style='margin: 5px 0;'><b>Fecha:</b> {fecha_comprobante}</p>
+                                <p style='margin: 5px 0;'><b>Cosechador:</b> {rut_vale}</p>
+                                <hr style='border-top: 1px dashed black;'>
+                                <table style='width: 100%; font-size: 14px; border-collapse: collapse;'>
+                                    <thead><tr><th style='text-align:left; border-bottom: 1px solid black;'>Variedad</th><th style='text-align:right; border-bottom: 1px solid black;'>Varas</th></tr></thead>
+                                    <tbody>{filas_html}</tbody>
+                                </table>
+                                <hr style='border-top: 1px dashed black;'>
+                                <h3 style='display: flex; justify-content: space-between; margin: 0;'><span>TOTAL:</span> <span>{total_varas} Varas</span></h3>
+                                <p style='text-align: center; font-size: 10px; margin-top: 15px; margin-bottom: 0;'>Documento interno de control agrícola.</p>
+                            </div>
+                            """
+                            st.session_state.mostrar_trigger_impresion = False
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al construir el vale: {e}")
+
+            with col_v_btn2:
+                # El botón Imprimir solo se activa si previamente se generó una vista previa válida
+                if st.button("🖨️ Imprimir Voucher", key="btn_vale_print_trigger", use_container_width=True, type="primary", disabled=(st.session_state.html_vale_actual == "")):
+                    st.session_state.mostrar_trigger_impresion = True
+                    st.rerun()
+
+            # Desplegamos el voucher en pantalla si existe en la memoria
+            if st.session_state.html_vale_actual:
+                st.html(st.session_state.html_vale_actual)
+                
+                # Inyección automatizada de JS: Se gatilla solo si el administrador presionó "Imprimir"
+                if st.session_state.mostrar_trigger_impresion:
+                    st.session_state.mostrar_trigger_impresion = False  # Reseteamos inmediatamente el gatillo
+                    st.html("""
+                        <script>
+                            // Ejecuta el comando de impresión del navegador de forma instantánea
+                            setTimeout(function() { window.print(); }, 200);
+                        </script>
+                    """)

@@ -32,6 +32,76 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
+# ==================================================================
+# 4.B DEFINICIÓN MAQUETA DE RUT (DECLARADA AL INICIO)
+# ==================================================================
+def dibujar_teclado_maqueta_antivero():
+    st.html("""
+        <style>
+            .cuadro-maqueta-rut { max-width: 340px; margin: 10px 0; box-sizing: border-box; }
+            .cuadro-maqueta-rut [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
+            .cuadro-maqueta-rut div[data-testid="column"] { margin-bottom: 0 !important; }
+            .cuadro-maqueta-rut button { background-color: #0f172a !important; color: #f8fafc !important; border: 1px solid #334155 !important; border-radius: 6px !important; font-size: 20px !important; font-weight: bold !important; height: 50px !important; }
+            .cuadro-maqueta-rut button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
+            .cuadro-maqueta-rut button[key="btn_k_RETROCESO"] p { color: #ef4444 !important; }
+            .cuadro-maqueta-rut .barra-borrar-real button { background-color: #ef4444 !important; border: 1px solid #b91c1c !important; height: 48px !important; }
+            .cuadro-maqueta-rut .barra-borrar-real button p { color: #ffffff !important; font-weight: bold !important; }
+            .cuadro-maqueta-rut .barra-borrar-real button:active { background-color: #dc2626 !important; }
+            .cuadro-maqueta-rut .columna-enter-vertical button { background-color: #1e293b !important; color: #38bdf8 !important; border: 2px solid #334155 !important; height: 224px !important; font-size: 18px !important; }
+        </style>
+    """)
+    rut_crudo = st.session_state.rut_cosechador
+    rut_visible = f"{rut_crudo[:-1]}-{rut_crudo[-1]}".upper() if len(rut_crudo) > 1 else rut_crudo.upper()
+    if not rut_crudo: rut_visible = "00.000.000-0"
+    
+    # Validación algorítmica para determinar el ícono visual ("V")
+    import __main__ as main
+    rut_es_valido = main.validar_rut_chileno(rut_crudo) if (rut_crudo and hasattr(main, 'validar_rut_chileno')) else False
+    icono_verificacion = "✅" if rut_es_valido else "🛑"
+    
+    col_visor_texto, col_visor_icono = st.columns([4, 1])
+    with col_visor_texto:
+        st.markdown(f'<div class="rut-display-box" style="font-size:22px; min-height:48px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
+    with col_visor_icono:
+        st.markdown(f'<div class="rut-display-box" style="font-size:22px; min-height:48px; margin-bottom:0; background-color:#1e293b; text-align:center;">{icono_verificacion}</div>', unsafe_allow_html=True)
+        
+    st.markdown('<div class="cuadro-maqueta-rut">', unsafe_allow_html=True)
+    col_bloque_numeros, col_bloque_enter = st.columns([3, 1])
+    with col_bloque_numeros:
+        filas_maqueta = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0", "K", "←"]]
+        for fila in filas_maqueta:
+            cols_n = st.columns(3)
+            for idx, digito in enumerate(fila):
+                with cols_n[idx]:
+                    if digito == "←":
+                        if st.button("←", key="btn_k_RETROCESO", use_container_width=True):
+                            st.session_state.rut_cosechador = st.session_state.rut_cosechador[:-1]
+                            st.rerun()
+                    else:
+                        if st.button(digito, key=f"btn_k_{digito}", use_container_width=True):
+                            if len(st.session_state.rut_cosechador) < 9:
+                                st.session_state.rut_cosechador += digito
+                                st.rerun()
+        st.markdown('<div class="barra-borrar-real">', unsafe_allow_html=True)
+        if st.button("borrar", key="btn_k_BORRAR_TODO", use_container_width=True):
+            st.session_state.rut_cosechador = ""
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    with col_bloque_enter:
+        st.markdown('<div class="columna-enter-vertical">', unsafe_allow_html=True)
+        if st.button("E\nN\nT\nE\nR", key="btn_k_ENTER_CONFIRM", use_container_width=True):
+            if rut_es_valido:
+                st.success("🔓 RUT Confirmado")
+            else:
+                st.error("❌ RUT Inválido")
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 🔒 BLOQUEO LÓGICO INVISIBLE: Guardamos el estado de validez en la memoria global de la app
+    # Reemplaza cualquier 'st.warning' o 'st.stop' que estuviera aquí abajo por esta asignación limpia:
+    st.session_state.rut_bloqueado_operacion = not rut_es_valido
+
+
 
 # ==================================================================
 # 2. CONFIGURACIÓN VISUAL (Tu Paleta de Colores Oscura Original)
@@ -234,7 +304,6 @@ if not st.session_state.usuario_conectado:
                 else:
                     st.warning("⚠️ Ingresa tu RUT o Correo.")
                 
-    st.stop() # Bloqueo absoluto de seguridad de la interfaz inferior
 
 # ==================================================================
 # 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
@@ -334,23 +403,41 @@ with st.sidebar:
 
 
 # ==================================================================
-# 4. MOTOR DE FORMATEO DE RUT CHILENO (NATIVO EN TIEMPO REAL)
+# ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
 # ==================================================================
-def formatear_rut_chileno(rut_crudo):
-    """Toma un texto de números y le da el formato chileno oficial: XX.XXX.XXX-X."""
-    if not rut_crudo:
-        return "00.000.000-0"
-    rut_crudo = "".join([c for c in rut_crudo if c.isalnum()])
-    if len(rut_crudo) <= 1:
-        return rut_crudo.upper()
+def validar_rut_chileno(rut_str):
+    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
+    if len(rut_limpio) < 2: return False
+    cuerpo = rut_limpio[:-1]
+    dv_ingresado = rut_limpio[-1]
+    if not cuerpo.isdigit(): return False
+    suma = 0
+    multiplicador = 2
+    for c in reversed(cuerpo):
+        suma += int(c) * multiplicador
+        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
+    remat = 11 - (suma % 11)
+    dv_esperado = "0" if remat == 11 else ("K" if remat == 10 else str(remat))
+    return dv_ingresado == dv_esperado
+
+# ==================================================================
+# FORMATEADOR MAESTRO DE RUT DIARIO (PUNTOS Y GUION AUTOMÁTICOS)
+# ==================================================================
+def formatear_rut_chileno_completo(rut_str):
+    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
+    if len(rut_limpio) < 2:
+        return rut_limpio
+    cuerpo = rut_limpio[:-1]
+    dv = rut_limpio[-1]
     
-    cuerpo = rut_crudo[:-1]
-    dv = rut_crudo[-1].upper()
-    
+    # Si tiene solo números, aplicamos formato progresivo de puntos
     if cuerpo.isdigit():
-        cuerpo_formateado = f"{int(cuerpo):,}".replace(",", ".")
-        return f"{cuerpo_formateado}-{dv}"
-    return f"{cuerpo}-{dv}"
+        cuerpo_int = int(cuerpo)
+        return f"{cuerpo_int:,}-{dv}".replace(",", ".")
+    else:
+        return f"{cuerpo}-{dv}"
+
+
 # ==================================================================
 # 5. MAQUETADO EN COLUMNAS (IDENTIFICACIÓN Y FLUJO CENTRAL)
 # ==================================================================
@@ -398,29 +485,8 @@ with col_panel_izq:
     
     st.write("")
     st.markdown("<label>🆔 RUT Cosechador</label>", unsafe_allow_html=True)
-    
-    rut_pantalla_visual = formatear_rut_chileno(st.session_state.rut_cosechador)
-    st.html(f'<div class="rut-display-box">{rut_pantalla_visual}</div>')
-    
-    col_k1, col_k2, col_k3 = st.columns(3)
-    botones_teclado = [
-        ("1", col_k1), ("2", col_k2), ("3", col_k3),
-        ("4", col_k1), ("5", col_k2), ("6", col_k3),
-        ("7", col_k1), ("8", col_k2), ("9", col_k3),
-        ("K", col_k1), ("0", col_k2), ("C", col_k3)
-    ]
-    
-    for digito, columna_destino in botones_teclado:
-        with columna_destino:
-            if digito == "C":
-                if st.button("C", key="btn_key_clear_tactic", use_container_width=True, type="secondary"):
-                    st.session_state.rut_cosechador = ""
-                    st.rerun()
-            else:
-                if st.button(digito, key=f"btn_key_tact_{digito}", use_container_width=True):
-                    if len(st.session_state.rut_cosechador) < 9:
-                        st.session_state.rut_cosechador += digito
-                        st.rerun()
+# Llamamos al teclado blindado de forma limpia sin romper sangrías
+    dibujar_teclado_maqueta_antivero()
 
 with col_panel_central_derecho:
     if "flor_seleccionada_meson" not in st.session_state:
@@ -470,73 +536,89 @@ with col_panel_central_derecho:
                 st.rerun()
 
     with col_derecha_consolidacion:
-        st.subheader("📥 Mesón de Carga Actual")
+        st.markdown("<h2 style='color:#f8fafc;'>📥 Mesón de Carga Actual</h2>", unsafe_allow_html=True)
+        
+        # 1. VISOR DE RECOLECCIÓN ACTIVA EN LA INTERFAZ DEL MESÓN
+        rut_aux_meson = st.session_state.rut_cosechador
+        rut_final_meson = f"{rut_aux_meson[:-1]}-{rut_aux_meson[-1]}".upper() if len(rut_aux_meson) > 1 else rut_aux_meson.upper()
+        
         with st.container(border=True):
-            if st.session_state.rut_cosechador == "":
-                st.markdown("<div style='color:#94a3b8; font-weight:bold; font-size:14px; text-align:center; padding:10px;'>Esperando RUT del cosechador...</div>", unsafe_allow_html=True)
-            elif not st.session_state.flor_seleccionada_meson:
-                st.markdown(f"<div style='color:#38bdf8; font-weight:bold; font-size:13px;'>Trabajador: {rut_pantalla_visual}</div><span style='color:#64748b; font-size:12px;'>Seleccione una flor en el centro...</span>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"**RUT:** {rut_pantalla_visual}")
-                st.markdown(f"**Flor:** <span style='color:#38bdf8;'>{st.session_state.flor_seleccionada_meson['nombre']}</span>", unsafe_allow_html=True)
-                
-                st.write("")
-                st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
-                col_btn_menos, col_display_num, col_btn_mas = st.columns([1, 1.5, 1])
-                
-                with col_btn_menos:
-                    if st.button("-5", key="btn_meson_restar_cinco", use_container_width=True):
-                        st.session_state.cantidad_varas_meson = max(0, st.session_state.cantidad_varas_meson - 5)
-                        st.rerun()
-                with col_display_num:
-                    st.markdown(f"<div style='background:#0f172a; color:#fff; text-align:center; font-size:20px; font-weight:bold; padding:4px; border:1px solid #64748b; border-radius:4px;'>{st.session_state.cantidad_varas_meson}</div>", unsafe_allow_html=True)
-                with col_btn_mas:
-                    if st.button("+5", key="btn_meson_sumar_cinco", use_container_width=True):
-                        st.session_state.cantidad_varas_meson += 5
-                        st.rerun()
-                
-                st.write("")
-                if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_registro_meson", use_container_width=True, type="primary"):
-                    partes_contratista = contratista.split(" | ")
-                    nuevo_registro = {
-                        "CentroCosto": centro_costo,
-                        "RutContratista": partes_contratista[0].strip(),
-                        "ContratistaNombre": partes_contratista[1].strip(),
-                        "RutCosechador": rut_pantalla_visual,
-                        "CodigoArticulo": int(st.session_state.flor_seleccionada_meson["codigo"]),
-                        "DescripcionArticulo": st.session_state.flor_seleccionada_meson["nombre"],
-                        "CantidadVaras": int(st.session_state.cantidad_varas_meson),
-                        "FechaRegistro": datetime.datetime.now()
-                    }
-                    try:
-                        db.collection("cosecha_diaria").add(nuevo_registro)
-                        st.session_state.flor_seleccionada_meson = None
-                        st.session_state.rut_cosechador = ""
-                        st.success("☁️ ¡Registro guardado en la Nube de Google con éxito!")
-                        st.rerun()
-                    except Exception as ex:
-                        st.error(f"❌ Error de conexión a la nube: {ex}")
-
-        st.write("")
-        st.markdown("<label>🗄️ Historial del Día (Servidor Google Cloud)</label>", unsafe_allow_html=True)
-        try:
-            docs_nube = db.collection("cosecha_diaria").order_by("FechaRegistro", direction=firestore.Query.DESCENDING).limit(10).stream()
-            lista_historial_en_vivo = [doc.to_dict() for doc in docs_nube]
+            st.markdown(f"**RUT:** {rut_final_meson}")
             
-            if not lista_historial_en_vivo:
-                st.info("No hay registros en la nube el día de hoy.")
-            else:
-                df_historial = pd.DataFrame(lista_historial_en_vivo)
-                st.dataframe(df_historial[["RutCosechador", "DescripcionArticulo", "CantidadVaras"]], hide_index=True, use_container_width=True)
-                
-                st.write("")
-                df_consolidado = df_historial.groupby(["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], as_index=False).sum()
-                csv_kame = df_consolidado.to_csv(index=False, sep=";").encode('utf-8')
-                fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d")
-                
-                st.download_button(label="📊 DESCARGAR .CSV PARA KAME ERP", data=csv_kame, file_name=f"KAME_Cosecha_Antivero_{fecha_hoy}.csv", mime="text/csv", use_container_width=True)
-        except Exception as error_lectura:
-            st.caption(f"Conectando al stream en vivo... {error_lectura}")
+            # Capturamos si realmente el operario pinchó una flor en el panel central
+            flor_actual = st.session_state.get("flor_seleccionada_meson", None)
+            flor_nom = flor_actual["nombre"] if flor_actual else "Ninguna"
+            st.markdown(f"**Flor:** <span style='color:#38bdf8; font-weight:bold;'>{flor_nom}</span>", unsafe_allow_html=True)
+            
+            st.write("")
+            st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
+            
+            col_m1, col_m2, col_m3 = st.columns([1, 1.5, 1])
+            with col_m1:
+                if st.button("-5", key="btn_meson_menos_5", use_container_width=True):
+                    st.session_state.cantidad_varas_meson = max(0, st.session_state.cantidad_varas_meson - 5)
+                    st.rerun()
+            with col_m2:
+                st.markdown(f"<div class='rut-display-box' style='min-height:46px; font-size:22px;'>{st.session_state.cantidad_varas_meson}</div>", unsafe_allow_html=True)
+            with col_m3:
+                if st.button("+5", key="btn_meson_mas_5", use_container_width=True):
+                    st.session_state.cantidad_varas_meson += 5
+                    st.rerun()
+            
+            st.write("")
+            # 🚨 CANDADO TRIPLE DE SEGURIDAD ABSOLUTA EN EL MESÓN 🚨
+            rut_invalido = st.session_state.get("rut_bloqueado_operacion", True)
+            sin_flor = (st.session_state.get("flor_seleccionada_meson", None) is None)
+            
+            # El botón se pone GRIS si el RUT falla O si no se ha elegido ninguna flor
+            bloqueo_final = rut_invalido or sin_flor
+            
+            if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
+                partes_contratista = contratista.split(" | ")
+                nuevo_registro = {
+                    "CentroCosto": centro_costo,
+                    "RutContratista": partes_contratista[0].strip() if len(partes_contratista) > 0 else "",
+                    "ContratistaNombre": partes_contratista[1].strip() if len(partes_contratista) > 1 else "",
+                                        # Forzamos a que se guarde en formato puro (sin puntos ni guion)
+                    "RutCosechador": st.session_state.rut_cosechador.replace(".", "").replace("-", "").strip().lower(),
+                    # Corregimos las claves para que lean la flor activa de la ram y no inyecten None
+                    "CodigoArticulo": int(st.session_state.flor_seleccionada_meson["codigo"]),
+                    "DescripcionArticulo": st.session_state.flor_seleccionada_meson["nombre"],
+                    "CantidadVaras": int(st.session_state.cantidad_varas_meson),
+                    "FechaRegistro": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
+                }
+                try:
+                    db.collection("cosecha_diaria").add(nuevo_registro)
+                    st.success("✅ Carga inyectada con éxito.")
+                    
+                    # RESET MÁSTER: Forzamos a que el siguiente registro vuelva a iniciar sin flor elegida
+                    st.session_state.flor_seleccionada_meson = None
+                    st.session_state.cantidad_varas_meson = 30
+                    st.rerun()
+                except Exception as e_fb:
+                    st.error(f"❌ Error Firebase: {e_fb}")
+
+        # 2. HISTORIAL DIARIO DE TERRENO UBICADO DEBAJO DEL CUADRO EN LA MISMA COLUMNA
+        st.write("")
+        st.markdown("<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>", unsafe_allow_html=True)
+        
+        # Leemos de forma segura si la lista original de tu PDF tiene datos guardados
+        lista_datos_dia = globals().get("lista_datos_dia", locals().get("lista_datos_dia", []))
+        
+        if lista_datos_dia:
+            try:
+                df_op = pd.DataFrame(lista_datos_dia)
+                columnas_seguras = ["RutCosechador", "DescripcionArticulo", "CantidadVaras"]
+                # Consolidamos las cargas del día excluyendo marcas de tiempo
+                df_op_render = df_op[columnas_seguras].groupby(["RutCosechador", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum()
+                st.dataframe(df_op_render, use_container_width=True, hide_index=True)
+            except Exception as e_tabla:
+                st.caption(f"⚠️ Nota de visualización: {e_tabla}")
+        else:
+            st.info("📝 No hay registros cargados hoy en este mesón.")
+
+        
+
 # --- CONTENIDO DE LA PESTAÑA B: PÁGINA COMPLETAMENTE NUEVA DE AUDITORÍA ---
 if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
     with tab_auditoria:
@@ -556,17 +638,19 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
         if "resultado_auditoria_nube" not in st.session_state:
             st.session_state.resultado_auditoria_nube = []
 
-        # 2. BOTÓN DE EJECUCIÓN CON SU ESTRUCTURA TRY-EXCEPT PROPIA Y CERRADA
+        # Botón de ejecución con lógica de filtrado inteligente unificada por RUT limpio
         if st.button("🔍 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_audit", use_container_width=True, type="primary"):
             try:
                 inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
                 fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
                 
-                # Definición dinámica de la consulta según el checkbox
+                # NUEVO: Limpiamos el RUT ingresado por el administrador para que calce con la base de datos
+                rut_auditoria_limpio = filtro_rut.replace(".", "").replace("-", "").strip().lower()
+                
                 if historico_completo and filtro_rut:
-                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", filtro_rut)
+                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", rut_auditoria_limpio)
                 elif filtro_rut:
-                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", filtro_rut).where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", rut_auditoria_limpio).where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
                 else:
                     query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
                 
@@ -579,6 +663,7 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Error al consultar la base de datos: {e}")
+
 
         # 3. INTERFAZ DE TARJETAS DE EDICIÓN (MEMORIA PERSISTENTE)
         if st.session_state.resultado_auditoria_nube:
@@ -597,9 +682,11 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                     c_info, c_edit, c_acc = st.columns([1.5, 1, 1])
                     
                     with c_info:
-                        st.markdown(f"👤 **Cosechador:** `{datos.get('RutCosechador')}`")
-                        st.markdown(f"🌸 **Flor:** {datos.get('DescripcionArticulo')} | 🕒 **Fecha/Hora:** {hora_str}")
-                        st.caption(f"📍 Origen: {datos.get('CentroCosto')} | ID: {doc_id[:8]}...")
+                        # Rescatamos el RUT limpio de Firebase y lo vestimos con puntos y guion en pantalla
+                        rut_tarjeta_crudo = datos.get('RutCosechador', '')
+                        rut_tarjeta_estetico = formatear_rut_chileno_completo(rut_tarjeta_crudo)
+                        st.markdown(f"👤 **Cosechador:** `{rut_tarjeta_estetico}`")
+
                     
                     with c_edit:
                         nueva_cantidad = st.number_input("Varas:", min_value=0, value=int(datos.get("CantidadVaras", 0)), step=1, key=f"audit_mod_{doc_id}")
@@ -769,8 +856,11 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                 if st.button("🧾 Generar Vista Previa", key="btn_vale_process", use_container_width=True):
                     try:
                         query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                        
+                        # NUEVO: Limpiamos el RUT del filtro para que Firebase lo encuentre en su formato puro
                         if filtro_rut:
-                            query = query.where("RutCosechador", "==", filtro_rut)
+                            rut_busqueda_vale = filtro_rut.replace(".", "").replace("-", "").strip().lower()
+                            query = query.where("RutCosechador", "==", rut_busqueda_vale)
                         
                         docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                         lista_datos = [doc.to_dict() for doc in docs]
@@ -783,12 +873,17 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             df_vale = df_admin.groupby(["RutCosechador", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum()
                             
                             fecha_comprobante = filtro_fecha.strftime("%d/%m/%Y")
-                            rut_vale = filtro_rut.upper() if filtro_rut else "TODOS LOS COSECHADORES"
+                            
+                            # Vestimos el RUT con puntos y guion exclusivamente para el diseño del papel térmico
+                            if filtro_rut:
+                                import __main__ as main
+                                rut_vale = main.formatear_rut_chileno_completo(filtro_rut) if hasattr(main, 'formatear_rut_chileno_completo') else filtro_rut.upper()
+                            else:
+                                rut_vale = "TODOS LOS COSECHADORES"
                             
                             filas_html = "".join([f"<tr><td style='padding:5px;'>{r['DescripcionArticulo']}</td><td style='text-align:right; font-weight:bold;'>{r['CantidadVaras']}</td></tr>" for _, r in df_vale.iterrows()])
                             total_varas = df_vale["CantidadVaras"].sum()
                             
-                            # Diseñamos el vale con una clase CSS especial para que la impresora ignore el resto de la app
                             st.session_state.html_vale_actual = f"""
                             <div id='seccion-imprimible-vale' style='background-color: white; color: black; padding: 20px; border: 1px solid #ccc; font-family: monospace; max-width: 100%; box-sizing: border-box; margin-bottom: 15px;'>
                                 <h3 style='text-align: center; margin: 0;'>FLORES ANTIVERO</h3>
@@ -810,6 +905,7 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error al construir el vale: {e}")
+
 
             with col_v_btn2:
                 # El botón Imprimir solo se activa si previamente se generó una vista previa válida

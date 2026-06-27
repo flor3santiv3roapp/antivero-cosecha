@@ -215,6 +215,23 @@ if "rut_cosechador" not in st.session_state:
 if "id_usuario_activo" not in st.session_state:
     st.session_state.id_usuario_activo = ""
 
+# 🚀 NUEVO GATILLO DE TERRENO: Descarga automática del día para el operario 🚀
+lista_datos_dia = []
+try:
+    # Definimos el rango exacto de la fecha de hoy para Chile
+    inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+    fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+    
+    # Traemos los documentos directo de Google Cloud sin que el operario tenga que apretar buscar
+    docs_hoy = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_hoy).where("FechaRegistro", "<=", fin_hoy).stream()
+    lista_datos_dia = [doc.to_dict() for doc in docs_hoy]
+    
+    # Compartimos la lista en la memoria global para que ambas pestañas la lean
+    st.session_state.lista_datos_dia_cache = lista_datos_dia
+except Exception as e_consulta_automatica:
+    st.caption(f"⚠️ Nota de sincronización: {e_consulta_automatica}")
+
+
 # ==================================================================
 # 3. PORTAL DE ACCESO DIRECTO CON MEDIDAS ANTI-AUTOCOMPLETADO
 # ==================================================================
@@ -229,7 +246,7 @@ if not st.session_state.usuario_conectado:
             }
         </style>
     """)
-    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Sistema Agrícola</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero </h3>", unsafe_allow_html=True)
     
     with st.container(border=True):
         st.markdown("### Iniciar Sesión")

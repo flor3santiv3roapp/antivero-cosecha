@@ -11,19 +11,14 @@ import json
 # ==================================================================
 if not firebase_admin._apps:
     try:
-        # A. INTENTAMOS LEER PRIMERO LOS SECRETS DE LA NUBE (PRODUCCIÓN)
         if "text_key" in st.secrets:
             firebase_info = dict(st.secrets["text_key"])
             cred = credentials.Certificate(firebase_info)
             firebase_admin.initialize_app(cred)
-            
-        # B. SI NO HAY SECRETS (COMO EN TU PC), BUSCA EL ARCHIVO LOCAL (DESARROLLO)
         else:
             cred = credentials.Certificate("llave_firebase.json")
             firebase_admin.initialize_app(cred)
-            
     except Exception as e_secrets:
-        # C. RESPALDO CRÍTICO SI LA CONDICIÓN DE SECRETS ARROJA "NO SECRETS FOUND"
         try:
             cred = credentials.Certificate("llave_firebase.json")
             firebase_admin.initialize_app(cred)
@@ -33,23 +28,69 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # ==================================================================
-# 4.B DEFINICIÓN MAQUETA DE RUT (DECLARADA AL INICIO - MARCO PROTECTOR)
+# 4.B DEFINICIÓN TECLADO MAQUETA CON MARCO PROTECTOR INDESTRUCTIBLE
 # ==================================================================
 def dibujar_teclado_maqueta_antivero():
+    # 🛡️ ESCUDO GEOMÉTRICO: Obliga a la tablet a mantener la cuadrícula 3x4 en vertical u horizontal
     st.html("""
         <style>
-            .cuadro-maqueta-rut { max-width: 340px; margin: 10px auto; box-sizing: border-box; }
-            .cuadro-maqueta-rut [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
-            .cuadro-maqueta-rut div[data-testid="column"] { margin-bottom: 0 !important; }
-            .cuadro-maqueta-rut button { background-color: #0f172a !important; color: #f8fafc !important; border: 1px solid #334155 !important; border-radius: 6px !important; font-size: 20px !important; font-weight: bold !important; height: 50px !important; }
-            .cuadro-maqueta-rut button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
-            .cuadro-maqueta-rut button[key="btn_k_RETROCESO"] p { color: #ef4444 !important; }
-            .cuadro-maqueta-rut .barra-borrar-real button { background-color: #ef4444 !important; border: 1px solid #b91c1c !important; height: 48px !important; }
-            .cuadro-maqueta-rut .barra-borrar-real button p { color: #ffffff !important; font-weight: bold !important; }
-            .cuadro-maqueta-rut .barra-borrar-real button:active { background-color: #dc2626 !important; }
-            .cuadro-maqueta-rut .columna-enter-vertical button { background-color: #1e293b !important; color: #38bdf8 !important; border: 2px solid #334155 !important; height: 224px !important; font-size: 18px !important; }
+            /* Creamos el cuadro contenedor perimetral rígido que solicitaste */
+            .recuadro-protector-campo {
+                background-color: #1e293b !important;
+                border: 2px solid #334155 !important;
+                border-radius: 12px !important;
+                padding: 18px !important;
+                max-width: 340px !important;
+                margin: 10px auto !important;
+                box-sizing: border-box !important;
+            }
+            /* Bloqueo Flexbox: Prohíbe terminantemente que los números se apilen hacia abajo */
+            .recuadro-protector-campo [data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                display: flex !important;
+                gap: 8px !important;
+                margin-bottom: 8px !important;
+            }
+            .recuadro-protector-campo [data-testid="stHorizontalBlock"] div[data-testid="column"] {
+                width: 33.333% !important;
+                flex: 1 1 33.333% !important;
+                max-width: 33.333% !important;
+                margin-bottom: 0 !important;
+            }
+            .recuadro-protector-campo button {
+                background-color: #0f172a !important;
+                color: #f8fafc !important;
+                border: 1px solid #334155 !important;
+                border-radius: 6px !important;
+                font-size: 20px !important;
+                font-weight: bold !important;
+                height: 52px !important;
+            }
+            .recuadro-protector-campo button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
+            .recuadro-protector-campo button[key="btn_k_RETROCESO"] p { color: #ef4444 !important; }
+            .recuadro-protector-campo .barra-borrar-real button { background-color: #ef4444 !important; border: 1px solid #b91c1c !important; height: 46px !important; }
+            .recuadro-protector-campo .barra-borrar-real button p { color: #ffffff !important; font-weight: bold !important; }
+            .recuadro-protector-campo .barra-borrar-real button:active { background-color: #dc2626 !important; }
+            .recuadro-protector-campo .columna-enter-vertical button { background-color: #1e293b !important; color: #38bdf8 !important; border: 2px solid #334155 !important; height: 232px !important; font-size: 18px !important; }
         </style>
     """)
+    
+    st.subheader("📍 Identificación de Campo")
+    st.session_state.cc_activo_meson = st.selectbox(
+        "Origen (Centro de Costo)",
+        ["Seleccione Centro de Costo...", "Las Rosas (CC 01)", "Chipana (CC 02)"],
+        key="cc_selector_agricola"
+    )
+    st.session_state.contratista_activo_meson = st.selectbox(
+        "Contratista Destino (Kame B2B)",
+        [
+            "Seleccione Contratista...",
+            "76.543.210-K | Servicios Agrícolas del Maule",
+            "77.123.456-7 | Agrícola San Fernando Limitada",
+            "76.999.888-2 | Mano de Obra Terreno SpA"
+        ],
+        key="contratista_selector_b2b"
+    )
     rut_crudo = st.session_state.rut_cosechador
     rut_visible = f"{rut_crudo[:-1]}-{rut_crudo[-1]}".upper() if len(rut_crudo) > 1 else rut_crudo.upper()
     if not rut_crudo: rut_visible = "00.000.000-0"
@@ -97,11 +138,11 @@ def dibujar_teclado_maqueta_antivero():
     st.markdown('</div>', unsafe_allow_html=True)
     st.session_state.rut_bloqueado_operacion = not rut_es_valido
 
+
 # ==================================================================
 # 2. CONFIGURACIÓN VISUAL OPTIMIZADA PARA GIROS Y DISPOSITIVOS
 # ==================================================================
 st.set_page_config(layout="wide", page_title="Flores Antivero Cosecha")
-
 st.html("""
     <style>
         :root {
@@ -184,6 +225,8 @@ st.html("""
                 font-size: 18px;
             }
         }
+        div[data-testid="stElementToolbar"] { display: none !important; }
+        div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
     </style>
 """)
 
@@ -196,13 +239,13 @@ hora_actual = ahora_chile.strftime("%H:%M")
 fecha_actual = ahora_chile.strftime("%d/%m/%Y")
 
 st.html(f"""
-    <div class="antivero-header">
-        <div>
-            <h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
-            <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Fecha de Campo: {fecha_actual}</div>
-        </div>
-        <div style="font-weight: bold; font-size: 24px; color: #38bdf8;">{hora_actual}</div>
-    </div>
+<div class="antivero-header">
+<div>
+<h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
+<div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Fecha de Campo: {fecha_actual}</div>
+</div>
+<div style="font-weight: bold; font-size: 24px; color: #38bdf8;">{hora_actual}</div>
+</div>
 """)
 
 # Inicialización segura de estados globales en Session State
@@ -215,57 +258,51 @@ if "rut_cosechador" not in st.session_state:
 if "id_usuario_activo" not in st.session_state:
     st.session_state.id_usuario_activo = ""
 
-# 🚀 NUEVO GATILLO DE TERRENO: Descarga automática del día para el operario 🚀
+# 🚀 GATILLO DE TERRENO: Descarga automática del día para el historial en vivo del operario 🚀
 lista_datos_dia = []
 try:
-    # Definimos el rango exacto de la fecha de hoy para Chile
     inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
     fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
-    
-    # Traemos los documentos directo de Google Cloud sin que el operario tenga que apretar buscar
     docs_hoy = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_hoy).where("FechaRegistro", "<=", fin_hoy).stream()
     lista_datos_dia = [doc.to_dict() for doc in docs_hoy]
-    
-    # Compartimos la lista en la memoria global para que ambas pestañas la lean
     st.session_state.lista_datos_dia_cache = lista_datos_dia
 except Exception as e_consulta_automatica:
     st.caption(f"⚠️ Nota de sincronización: {e_consulta_automatica}")
 
-
 # ==================================================================
-# 3. PORTAL DE ACCESO DIRECTO CON MEDIDAS ANTI-AUTOCOMPLETADO
+# 3. PORTAL DE ACCESO ÚNICO CON ESCUDO DE CAMPOS TRAMPA ANTI-AUTOCOMPLETADO
 # ==================================================================
 if not st.session_state.usuario_conectado:
     st.html("""
+        <form style="display:none;" autocomplete="off">
+            <input type="text" name="username_fake" autocomplete="new-username" />
+            <input type="password" name="password_fake" autocomplete="new-password" />
+        </form>
         <style>
-            input:-webkit-autofill,
-            input:-webkit-autofill:hover, 
-            input:-webkit-autofill:focus {
+            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
                 -webkit-text-fill-color: #f8fafc !important;
                 transition: background-color 5000s ease-in-out 0s;
             }
         </style>
     """)
-    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero </h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
     
     with st.container(border=True):
         st.markdown("### Iniciar Sesión")
-        input_usuario = st.text_input("Ingresa tu RUT o Correo Administrador:", placeholder="Ej: admin@antivero.cl", key="auth_login_user").strip().lower()
-        input_clave = st.text_input("Contraseña de acceso:", type="password", placeholder="••••••••", key="auth_login_password")
+        input_usuario = st.text_input("INGRESA TU RUT O CORREO ADMINISTRADOR:", placeholder="Ej: admin@antivero.cl", key="auth_login_user").strip().lower()
+        input_clave = st.text_input("CONTRASEÑA DE ACCESO:", type="password", placeholder="••••••••", key="auth_login_password")
         
-        # Script que bloquea las sugerencias automáticas del navegador en caliente
         st.html("""
-            <script>
-                setTimeout(function() {
-                    const inputs = window.parent.document.querySelectorAll('input[type="password"], input[type="text"]');
-                    inputs.forEach(input => {
-                        input.setAttribute('autocomplete', 'new-password');
-                        input.setAttribute('autocorrect', 'off');
-                        input.setAttribute('autocapitalize', 'off');
-                        input.setAttribute('spellcheck', 'false');
-                    });
-                }, 300);
-            </script>
+        <script>
+        setTimeout(function() {
+            const inputs = window.parent.document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('id', 'nocache_' + Math.random().toString(36).substring(7));
+                input.removeAttribute('name');
+            });
+        }, 250);
+        </script>
         """)
         if st.button("🔑 Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
             if input_usuario and input_clave:
@@ -289,35 +326,6 @@ if not st.session_state.usuario_conectado:
             else:
                 st.warning("⚠️ Por favor, complete ambos campos.")
 
-    # --- SUB-MÓDULO DE RECUPERACIÓN SEGURO E HÍBRIDO ---
-    st.write("---")
-    with st.expander("❓ ¿Olvidaste tu contraseña? Restablece aquí"):
-        st.caption("Los correos recibirán un link oficial de Google. Los RUT alertarán al mesón.")
-        recup_user = st.text_input("Ingresa tu RUT o Correo Corporativo:", placeholder="Ej: admin@antivero.cl", key="input_recup_id").strip().lower()
-        if st.button("Procesar Recuperación", key="btn_send_recup", use_container_width=True):
-            if recup_user:
-                try:
-                    if "@" in recup_user:
-                        import firebase_admin.auth as auth
-                        try:
-                            enlace = auth.generate_password_reset_link(recup_user)
-                            st.success("¡Enlace enviado! Google ha procesado tu solicitud. Revisa tu correo corporativo.")
-                        except Exception as auth_err:
-                            st.error(f"El correo electrónico no figura en el panel de Firebase Auth: {auth_err}")
-                    else:
-                        user_check = db.collection("usuarios").document(recup_user).get()
-                        if user_check.exists:
-                            db.collection("solicitudes_clave").document(recup_user).set({
-                                "usuario": recup_user, "fecha_solicitud": datetime.datetime.now(), "estado": "pendiente"
-                            })
-                            st.success("Alerta enviada al mesón. Pide a un administrador que reconfigure tu clave desde su barra lateral.")
-                        else:
-                            st.error("El RUT ingresado no existe en los registros de Flores Antivero.")
-                except Exception as e:
-                    st.error(f"Error al conectar con la base de datos: {e}")
-            else:
-                st.warning("Ingresa tu RUT o Correo.")
-                
     # 🔒 EL ESCUDO MÁSTER: Detiene la ejecución absoluta para que NO se dibuje la terminal abajo si no se ha logueado
     st.stop()
 
@@ -343,12 +351,12 @@ with st.sidebar:
                         st.error(f"Error: {e}")
                 else:
                     st.error("Las claves no coinciden o tienen menos de 4 caracteres.")
+
     # SECCIÓN EXCLUSIVA PARA ADMINISTRADORES: GESTIÓN DE PERSONAL
     if st.session_state.rol_usuario == "admin":
         st.write("---")
         st.markdown("### 🛠️ Herramientas de Administrador")
         
-        # A. Crear Operario (Antes estaba público)
         with st.expander("👤 Registrar Nuevo Operario", expanded=False):
             with st.form("form_registro_interno_admin", clear_on_submit=True):
                 reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
@@ -366,18 +374,17 @@ with st.sidebar:
                     else:
                         st.warning("⚠️ Datos inválidos o clave muy corta.")
                         
-        # B. Eliminar Cuentas de Operarios de forma definitiva
         with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
             with st.form("form_eliminar_operario", clear_on_submit=True):
                 rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
+                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario SpA.")
                 if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
                     if rut_a_borrar and confirmar_check:
                         try:
                             doc_ref = db.collection("usuarios").document(rut_a_borrar)
                             if doc_ref.get().exists:
                                 doc_ref.delete()
-                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado de Firebase!")
+                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado de FirebaseSpA!")
                             else:
                                 st.error("❌ El RUT ingresado no existe.")
                         except Exception as e:
@@ -385,7 +392,6 @@ with st.sidebar:
                     else:
                         st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
                         
-        # C. Panel de Solicitudes de Clave Pendientes
         with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
             try:
                 solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
@@ -411,7 +417,6 @@ with st.sidebar:
         st.session_state.rol_usuario = "operario"
         st.session_state.id_usuario_activo = ""
         st.rerun()
-
 # ==================================================================
 # ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
 # ==================================================================
@@ -444,46 +449,25 @@ def formatear_rut_chileno_completo(rut_str):
         return f"{cuerpo_int:,}-{dv}".replace(",", ".")
     else:
         return f"{cuerpo}-{dv}"
+
 # ==================================================================
 # 5. MAQUETADO EN COLUMNAS (IDENTIFICACIÓN Y FLUJO CENTRAL)
 # ==================================================================
-# Inicializamos las variables de control de la página de administración si no existen
 if "admin_tab_filtro_rut" not in st.session_state:
     st.session_state.admin_tab_filtro_rut = ""
 
-# Si el usuario es Administrador, creamos las pestañas superiores de navegación
 if st.session_state.rol_usuario == "admin":
     tab_terminal, tab_auditoria = st.tabs(["🚜 Terminal de Cosecha", "📊 Panel de Control y Auditoría"])
 else:
-    # Si es operario, creamos contenedores falsos para mantener el mismo flujo de código abajo
     tab_terminal = st.container()
     tab_auditoria = None
 
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
-    # Encapsulamos la interfaz en la distribución original balanceada de terreno
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])
     
     with col_panel_izq:
-        st.subheader("📍 Identificación de Campo")
-        centro_costo = st.selectbox(
-            "Origen (Centro de Costo)",
-            ["Las Rosas (CC 01)", "Chipana (CC 02)"],
-            key="cc_selector_agricola"
-        )
-        contratista = st.selectbox(
-            "Contratista Destino (Kame B2B)",
-            [
-                "76.543.210-K | Servicios Agrícolas del Maule",
-                "77.123.456-7 | Agrícola San Fernando Limitada",
-                "76.999.888-2 | Mano de Obra Terreno SpA"
-            ],
-            key="contratista_selector_b2b"
-        )
-        st.write("")
-        st.markdown("<label>👤 RUT Cosechador</label>", unsafe_allow_html=True)
-        
-        # Llamamos al teclado maqueta blindado que ya está declarado al inicio absoluto del archivo
+        # Llamamos al teclado maqueta blindado por su marco protector rígido
         dibujar_teclado_maqueta_antivero()
 
     with col_panel_central_derecho:
@@ -498,7 +482,7 @@ with tab_terminal:
             st.subheader("🌸 Selección de Familia de Flores")
             capa_familias = st.tabs(["🌹 Rosas / Romance / Elegance", "🌸 Peonías", "🌿 Delphinium"])
             
-            # Evaluamos de forma silenciosa e interna el candado del RUT para congelar las flores
+            # Candado inteligente en vivo leyendo el Session State de la fila izquierda
             bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
             
             with capa_familias[0]:
@@ -551,27 +535,73 @@ with tab_terminal:
                 
                 st.write("")
                 st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
-                col_m1, col_m2, col_m3 = st.columns([1, 1.5, 1])
+                
+                # Inyectamos el CSS local de alta prioridad que mimetiza la caja editable con tu diseño
+                st.html("""
+                    <style>
+                        div[data-testid="stNumberInput"] input {
+                            background-color: #0f172a !important;
+                            color: #38bdf8 !important;
+                            border: 1px solid #334155 !important;
+                            border-radius: 8px !important;
+                            font-size: 24px !important;
+                            font-weight: bold !important;
+                            text-align: center !important;
+                            height: 52px !important;
+                        }
+                        input[type=number]::-webkit-inner-spin-button, 
+                        input[type=number]::-webkit-outer-spin-button { 
+                            -webkit-appearance: none; 
+                            margin: 0; 
+                        }
+                        input[type=number] { -moz-appearance: textfield; }
+                        div[data-testid="stNumberInput"] label { display: none !important; }
+                    </style>
+                """)
+
+                # Creamos la sub-distribución proporcional para colocar la caja editable y sus botones laterales
+                col_m1, col_m2, col_m3 = st.columns([1, 1.6, 1])
                 with col_m1:
                     if st.button("-5", key="btn_meson_menos_5", use_container_width=True):
                         st.session_state.cantidad_varas_meson = max(0, st.session_state.cantidad_varas_meson - 5)
                         st.rerun()
+                        
                 with col_m2:
-                    st.markdown(f"<div class='rut-display-box' style='min-height:46px; font-size:22px;'>{st.session_state.cantidad_varas_meson}</div>", unsafe_allow_html=True)
+                    # Caja de texto numérica 100% editable al tacto en la tablet de campo
+                    varas_digitadas = st.number_input(
+                        "Cantidad Varas:",
+                        min_value=0,
+                        max_value=500,
+                        value=int(st.session_state.cantidad_varas_meson),
+                        step=1,
+                        key="input_editable_varas_meson"
+                    )
+                    if varas_digitadas != st.session_state.cantidad_varas_meson:
+                        st.session_state.cantidad_varas_meson = int(varas_digitadas)
+                        st.rerun()
+                        
                 with col_m3:
                     if st.button("+5", key="btn_meson_mas_5", use_container_width=True):
                         st.session_state.cantidad_varas_meson += 5
                         st.rerun()
                 
                 st.write("")
-                # El botón se pone GRIS si el RUT falla O si no se ha elegido ninguna flor
+                # 🚨 CANDADO MULTIPLE DE CONTROL TOTAL ACTUALIZADO 🚨
+                rut_invalido = st.session_state.get("rut_bloqueado_operacion", True)
                 sin_flor = (st.session_state.get("flor_seleccionada_meson", None) is None)
-                bloqueo_final = bloqueo_activa = st.session_state.get("rut_bloqueado_operacion", True) or sin_flor
+                
+                cc_seleccionado = st.session_state.get("cc_activo_meson", "Seleccione Centro de Costo...")
+                contratista_seleccionado = st.session_state.get("contratista_activo_meson", "Seleccione Contratista...")
+                
+                sin_cc = (cc_seleccionado == "Seleccione Centro de Costo...")
+                sin_contratista = (contratista_seleccionado == "Seleccione Contratista...")
+                
+                bloqueo_final = rut_invalido or sin_flor or sin_cc or sin_contratista
                 
                 if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
-                    partes_contratista = contratista.split(" | ")
+                    partes_contratista = contratista_seleccionado.split(" | ")
                     nuevo_registro = {
-                        "CentroCosto": centro_costo,
+                        "CentroCosto": cc_seleccionado,
                         "RutContratista": partes_contratista[0].strip() if len(partes_contratista) > 0 else "",
                         "ContratistaNombre": partes_contratista[1].strip() if len(partes_contratista) > 1 else "",
                         "RutCosechador": st.session_state.rut_cosechador.replace(".", "").replace("-", "").strip().lower(),
@@ -589,15 +619,18 @@ with tab_terminal:
                     except Exception as e_fb:
                         st.error(f"❌ Error Firebase: {e_fb}")
 
-            # 2. HISTORIAL DIARIO DE TERRENO CON VALIDACIÓN DE NO-DATETIME6ARA
+            # 2. HISTORIAL DIARIO DE TERRENO ACTUALIZADO AUTOMÁTICAMENTE
             st.write("")
             st.markdown("<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>", unsafe_allow_html=True)
             
-            # Consultamos la lista real que alimenta tu script original en la pestaña B
-            lista_datos_dia = globals().get("lista_datos_dia", locals().get("lista_datos_dia", []))
-            if lista_datos_dia:
+            lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
+            if lista_operario_real:
                 try:
-                    df_op = pd.DataFrame(lista_datos_dia)
+                    df_op = pd.DataFrame(lista_operario_real)
+                    import __main__ as main
+                    if "RutCosechador" in df_op.columns and hasattr(main, "formatear_rut_chileno_completo"):
+                        df_op["RutCosechador"] = df_op["RutCosechador"].apply(main.formatear_rut_chileno_completo)
+                        
                     columnas_seguras = ["RutCosechador", "DescripcionArticulo", "CantidadVaras"]
                     df_op_render = df_op[columnas_seguras].groupby(["RutCosechador", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum()
                     st.dataframe(df_op_render, use_container_width=True, hide_index=True)
@@ -606,57 +639,85 @@ with tab_terminal:
             else:
                 st.info("📝 No hay registros cargados hoy en este mesón.")
 
-# --- CONTENIDO DE LA PESTAÑA B: PANEL DE AUDITORÍA Y CONTROL DE REGISTROS ---
+# --- CONTENIDO DE LA PESTAÑA B: PANEL DE AUDITORÍA Y CONTROL (ADMINISTRADOR) ---
 if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
     with tab_auditoria:
         st.markdown("<h2 style='color:#38bdf8;'>📊 Ventana de Auditoría y Control de Registros</h2>", unsafe_allow_html=True)
         st.caption("Espacio exclusivo para administradores. Filtre por día, por RUT o combine ambos para auditar Google Firebase.")
         
-        col_filtro_fecha, col_filtro_rut = st.columns(2)
-        with col_filtro_fecha:
+        col_f_fecha, col_f_cc, col_f_b2b, col_f_rut = st.columns(4)
+        with col_f_fecha:
             filtro_fecha = st.date_input("📅 Filtrar por Día:", value=datetime.date.today(), key="admin_audit_date")
-            historico_completo = st.checkbox("Ignorar fecha y buscar historial completo", value=False, key="chk_audit_hist")
-        with col_filtro_rut:
-            filtro_rut = st.text_input("🔍 Filtrar por RUT Cosechador (Opcional):", placeholder="Ej: 123456789", key="admin_audit_rut").strip().lower()
+            historico_completo = st.checkbox("Ignorar fecha", value=False, key="chk_audit_hist")
+        with col_f_cc:
+            filtro_cc = st.selectbox("🏬 Centro de Costo:", ["Las Rosas (CC 01)", "Chipana (CC 02)"], key="audit_filter_cc")
+            ignorar_cc = st.checkbox("Ignorar Centro Costo", value=True, key="chk_audit_cc")
+        with col_f_b2b:
+            filtro_b2b = st.selectbox("🤝 Contratista B2B:", [
+                "76.543.210-K | Servicios Agrícolas del Maule",
+                "77.123.456-7 | Agrícola San Fernando Limitada",
+                "76.999.888-2 | Mano de Obra Terreno SpA"
+            ], key="audit_filter_b2b")
+            ignorar_b2b = st.checkbox("Ignorar Contratista SpA", value=True, key="chk_audit_b2b")
+        with col_f_rut:
+            filtro_rut = st.text_input("🔍 RUT Cosechador:", placeholder="Ej: 123456789", key="admin_audit_rut").strip().lower()
             
         if "resultado_auditoria_nube" not in st.session_state:
             st.session_state.resultado_auditoria_nube = []
             
         if st.button("🚀 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_audit", use_container_width=True, type="primary"):
             try:
-                inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
-                fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
-                rut_auditoria_limpio = filtro_rut.replace(".", "").replace("-", "").strip().lower()
+                tz_local = zoneinfo.ZoneInfo("America/Santiago")
+                inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
+                fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
                 
-                if historico_completo and filtro_rut:
-                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", rut_auditoria_limpio)
-                elif filtro_rut:
-                    query = db.collection("cosecha_diaria").where("RutCosechador", "==", rut_auditoria_limpio).where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                else:
-                    query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                    
+                query = db.collection("cosecha_diaria")
+                if not historico_completo:
+                    query = query.where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
+                if filtro_rut:
+                    query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
+                if not ignorar_cc:
+                    query = query.where("CentroCosto", "==", filtro_cc)
+                if not ignorar_b2b:
+                    # Filtramos por el nombre de la empresa limpio extraído del string
+                    nombre_b2b_limpio = filtro_b2b.split(" | ")[1].strip() if " | " in filtro_b2b else filtro_b2b
+                    query = query.where("ContratistaNombre", "==", nombre_b2b_limpio)
+                
                 docs_filtrados = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                 st.session_state.resultado_auditoria_nube = [(doc.id, doc.to_dict()) for doc in docs_filtrados]
+                
                 if not st.session_state.resultado_auditoria_nube:
-                    st.info("📋 No se encontraron registros en la nube para los criterios seleccionados.")
+                    st.info("📋 No se encontraron registros con los criterios seleccionados.")
                 else:
                     st.rerun()
             except Exception as e:
-                st.error(f"❌ Error al consultar la base de datos: {e}")
+                st.error(f"❌ Error en consulta Firebase: {e}")
 
-        # Guardamos la referencia de tu lista de datos para el mesón
+        # Guardamos la referencia para el mesón
         locals()["lista_datos_dia"] = [d for _, d in st.session_state.resultado_auditoria_nube]
 
         if st.session_state.resultado_auditoria_nube:
             st.write(f"📋 Se encontraron {len(st.session_state.resultado_auditoria_nube)} registros:")
             for doc_id, datos in st.session_state.resultado_auditoria_nube:
                 with st.container(border=True):
-                    c_info, c_edit, c_acc = st.columns([1.5, 1, 1])
+                    c_info, c_edit, c_acc = st.columns([1.8, 1, 1.2])
                     with c_info:
                         rut_tarjeta_crudo = datos.get('RutCosechador', '')
-                        rut_tarjeta_estetico = formatear_rut_chileno_completo(rut_tarjeta_crudo)
+                        import __main__ as main
+                        rut_tarjeta_estetico = main.formatear_rut_chileno_completo(rut_tarjeta_crudo) if hasattr(main, 'formatear_rut_chileno_completo') else rut_tarjeta_crudo.upper()
+                        
+                        fecha_registro_raw = datos.get("FechaRegistro", None)
+                        fecha_registro_estetica = fecha_registro_raw.strftime("%d/%m/%Y a las %H:%M hrs") if hasattr(fecha_registro_raw, "strftime") else "Sin fecha"
+                        
+                        cc_origen_real = datos.get("CentroCosto", "S/C")
+                        contratista_real = datos.get("ContratistaNombre", "S/C")
+                        
                         st.markdown(f"👤 **Cosechador:** `{rut_tarjeta_estetico}`")
                         st.caption(f"📦 Variedad: {datos.get('DescripcionArticulo', 'S/V')}")
+                        st.markdown(f"<div style='font-size:12px; color:#94a3b8;'>🏬 <b>Origen:</b> {cc_origen_real}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size:12px; color:#94a3b8;'>🤝 <b>Empresa:</b> {contratista_real}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size:12px; color:#38bdf8; margin-top:4px;'>📅 <b>Registro:</b> {fecha_registro_estetica}</div>", unsafe_allow_html=True)
+                    
                     with c_edit:
                         nueva_cantidad = st.number_input("Varas:", min_value=0, value=int(datos.get("CantidadVaras", 0)), step=1, key=f"audit_mod_{doc_id}")
                     with c_acc:
@@ -665,24 +726,24 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             try:
                                 db.collection("cosecha_diaria").document(doc_id).update({"CantidadVaras": int(nueva_cantidad)})
                                 st.session_state.resultado_auditoria_nube = [] 
-                                st.success("¡Registro modificado!")
+                                st.success("¡Modificado!")
                                 st.rerun()
-                            except Exception as ex: st.error(f"Error: {ex}")
+                            except Exception as ex:
+                                st.error(f"Error: {ex}")
                         if st.button("🗑️ Borrar", key=f"audit_btn_del_{doc_id}", use_container_width=True, type="secondary"):
                             try:
                                 db.collection("cosecha_diaria").document(doc_id).delete()
                                 st.session_state.resultado_auditoria_nube = [] 
-                                st.success("Registro eliminado.")
+                                st.success("Eliminado.")
                                 st.rerun()
-                            except Exception as ex: st.error(f"Error: {ex}")
+                            except Exception as ex:
+                                st.error(f"Error: {ex}")
 
         # ==================================================================
-        # E. PANEL DE CONFIGURACIÓN DEL CATÁLOGO (ORÍGENES, CONTRATISTAS, FLORES)
+        # E. PANEL DE CONFIGURACIÓN DEL CATÁLOGO DIRECTO EN LA NUBE
         # ==================================================================
         st.write("---")
         st.markdown("<h2 style='color:#38bdf8;'>⚙️ Panel de Configuración del Catálogo</h2>", unsafe_allow_html=True)
-        st.caption("Agregue nuevos orígenes, contratistas o variedades de flores directamente a la base de datos.")
-        
         s_cc, s_b2b, s_flores = st.tabs(["🏬 Centros de Costo", "🤝 Contratistas B2B", "💐 Flores y Variedades"])
         
         with s_cc:
@@ -697,7 +758,6 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             st.error(f"Error: {e}")
                     else:
                         st.warning("El campo no puede estar vacío.")
-                    
         with s_b2b:
             with st.form("form_add_contratista", clear_on_submit=True):
                 new_rut_b2b = st.text_input("RUT Contratista (Con puntos y guión):", placeholder="Ej: 76.888.999-K").strip()
@@ -707,7 +767,7 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                         try:
                             cadena_kame = f"{new_rut_b2b} | {new_nom_b2b}"
                             db.collection("config_contratistas").add({"formato_kame": cadena_kame, "fecha_creacion": datetime.datetime.now()})
-                            st.success(f"✅ Contratista '{cadena_kame}' configurado para Kame ERP.")
+                            st.success(f"✅ Contratista '{cadena_kame}' configurado.")
                         except Exception as e:
                             st.error(f"Error: {e}")
                     else:
@@ -734,16 +794,16 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                         st.warning("Todos los campos son obligatorios.")
 
         # ==================================================================
-        # F. SECCIÓN EXCLUSIVA: EXPORTACIÓN ERP Y VALES DE IMPRESIÓN
+        # F. EXPORTACIÓN ERP Y EMISIÓN DE VALES FORMALES EN TICKET CHILE
         # ==================================================================
         st.write("---")
         st.markdown("<h2 style='color:#38bdf8;'>🧾 Exportación y Comprobantes de Cosecha</h2>", unsafe_allow_html=True)
         
-        inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+        tz_local = zoneinfo.ZoneInfo("America/Santiago")
+        inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
         fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
         
         col_admin_kame, col_admin_vale = st.columns(2)
-        
         with col_admin_kame:
             st.markdown("### Planilla Contable")
             if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
@@ -753,28 +813,31 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                         query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
                     docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                     lista_datos = [doc.to_dict() for doc in docs]
-                    
                     if not lista_datos:
                         st.warning("⚠️ No se encontraron registros.")
                     else:
                         df_admin = pd.DataFrame(lista_datos)
                         columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
                         csv_kame = df_admin[columnas_kame].groupby(["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum().to_csv(index=False, sep=";").encode('utf-8')
-                        st.success("Planilla generada con éxito.")
-                        st.download_button(label="📥 DESCARGAR ARCHIVO PARA KAME ERP", data=csv_kame, file_name=f"KAME_Cosecha_{filtro_fecha}.csv", mime="text/csv", use_container_width=True)
+                        st.success("Planilla generada.")
+                        st.download_button(label="📥 DESCARGAR PLANILLA KAME", data=csv_kame, file_name=f"KAME_Cosecha_{filtro_fecha}.csv", mime="text/csv", use_container_width=True)
                 except Exception as e:
                     st.error(f"Error: {e}")
+                
         with col_admin_vale:
             st.markdown("### Vale Físico de Cosecha")
             col_v_btn1, col_v_btn2 = st.columns(2)
-            if "html_vale_actual" not in st.session_state: st.session_state.html_vale_actual = ""
-            if "mostrar_trigger_impresion" not in st.session_state: st.session_state.mostrar_trigger_impresion = False
+            if "html_vale_actual" not in st.session_state:
+                st.session_state.html_vale_actual = ""
+            if "mostrar_trigger_impresion" not in st.session_state:
+                st.session_state.mostrar_trigger_impresion = False
             
             with col_v_btn1:
                 if st.button("Generar Vista Previa", key="btn_vale_process", use_container_width=True):
                     try:
                         query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                        if filtro_rut: query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
+                        if filtro_rut:
+                            query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
                         docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                         lista_datos = [doc.to_dict() for doc in docs]
                         if not lista_datos:
@@ -782,24 +845,39 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             st.session_state.html_vale_actual = ""
                         else:
                             df_vale = pd.DataFrame(lista_datos).groupby(["RutCosechador", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum()
-                            rut_vale = formatear_rut_chileno_completo(filtro_rut) if filtro_rut else "TODOS LOS COSECHADORES"
-                            filas_html = "".join([f"<tr><td style='padding:5px;'>{r['DescripcionArticulo']}</td><td style='text-align:right; font-weight:bold;'>{r['CantidadVaras']}</td></tr>" for _, r in df_vale.iterrows()])
+                            import __main__ as main
+                            rut_vale = main.formatear_rut_chileno_completo(filtro_rut) if (filtro_rut and hasattr(main, "formatear_rut_chileno_completo")) else "TODOS LOS COSECHADORES"
+                            cc_vale = filtro_cc if not ignorar_cc else "TODOS LOS CENTROS"
+                            b2b_vale = filtro_b2b.split(" | ")[1] if not ignorar_b2b else "TODOS LOS CONTRATISTAS"
+                            
+                            filas_html = "".join([f"<tr><td style='padding:4px;'>{r['DescripcionArticulo']}</td><td style='text-align:right; font-weight:bold;'>{r['CantidadVaras']}</td></tr>" for _, r in df_vale.iterrows()])
                             st.session_state.html_vale_actual = f"""
                             <div style='background-color:white; color:black; padding:20px; font-family:monospace; border:1px solid #ccc;'>
                                 <h3 style='text-align:center; margin:0;'>FLORES ANTIVERO</h3>
                                 <p style='text-align:center; margin:5px 0; font-size:12px;'>COMPROBANTE DE COSECHA DIARIA</p>
-                                <hr style='border-top:1px dashed black;'><p><b>Fecha:</b> {filtro_fecha.strftime('%d/%m/%Y')}</p><p><b>Cosechador:</b> {rut_vale}</p>
-                                <hr style='border-top:1px dashed black;'><table style='width:100%; border-collapse:collapse;'><thead><tr><th style='text-align:left;'>Variedad</th><th style='text-align:right;'>Varas</th></tr></thead><tbody>{filas_html}</tbody></table>
-                                <hr style='border-top:1px dashed black;'><h3 style='display:flex; justify-content:space-between; margin:0;'><span>TOTAL:</span> <span>{df_vale['CantidadVaras'].sum()} Varas</span></h3>
+                                <hr style='border-top:1px dashed black;'>
+                                <p style='margin:3px 0;'><b>Fecha:</b> {filtro_fecha.strftime('%d/%m/%Y')}</p>
+                                <p style='margin:3px 0;'><b>Origen:</b> {cc_vale}</p>
+                                <p style='margin:3px 0;'><b>Empresa:</b> {b2b_vale}</p>
+                                <p style='margin:3px 0;'><b>Cosechador:</b> {rut_vale}</p>
+                                <hr style='border-top:1px dashed black;'>
+                                <table style='width:100%; border-collapse:collapse;'>
+                                    <thead><tr><th style='text-align:left;'>Variedad</th><th style='text-align:right;'>Varas</th></tr></thead>
+                                    <tbody>{filas_html}</tbody>
+                                </table>
+                                <hr style='border-top:1px dashed black;'>
+                                <h3 style='display:flex; justify-content:space-between; margin:0;'><span>TOTAL:</span> <span>{df_vale['CantidadVaras'].sum()} Varas</span></h3>
                             </div>"""
                             st.session_state.mostrar_trigger_impresion = False
                             st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
             with col_v_btn2:
                 if st.button("Imprimir Voucher", key="btn_vale_print_trigger", use_container_width=True, type="primary", disabled=(st.session_state.html_vale_actual == "")):
                     st.session_state.mostrar_trigger_impresion = True
                     st.rerun()
-            if st.session_state.html_vale_actual: st.html(st.session_state.html_vale_actual)
+            if st.session_state.html_vale_actual:
+                st.html(st.session_state.html_vale_actual)
             if st.session_state.mostrar_trigger_impresion:
                 st.session_state.mostrar_trigger_impresion = False
                 st.html("<script>setTimeout(function() { window.parent.print(); }, 200);</script>")

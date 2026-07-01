@@ -5,6 +5,8 @@ import zoneinfo
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
+import qrcode
+import io
 
 # ==================================================================
 # 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (HÍBRIDA)
@@ -28,70 +30,175 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # ==================================================================
-# 4.B DEFINICIÓN TECLADO MAQUETA CON MARCO PROTECTOR INDESTRUCTIBLE
+# 4.B TERMINAL EXPRESS CON LECTOR QR ASOCIADO (DISEÑO EXACTO FOTO)
 # ==================================================================
 def dibujar_teclado_maqueta_antivero():
-    # 🛡️ ESCUDO GEOMÉTRICO: Obliga a la tablet a mantener la cuadrícula 3x4 en vertical u horizontal
     st.html("""
         <style>
-            /* Creamos el cuadro contenedor perimetral rígido que solicitaste */
-            .recuadro-protector-campo {
-                background-color: #1e293b !important;
-                border: 2px solid #334155 !important;
-                border-radius: 12px !important;
-                padding: 18px !important;
-                max-width: 340px !important;
-                margin: 10px auto !important;
-                box-sizing: border-box !important;
+            .cuadro-teclado-oficial { max-width: 350px; margin: 10px auto; box-sizing: border-box; }
+            .cuadro-teclado-oficial [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
+            .cuadro-teclado-oficial div[data-testid="column"] { margin-bottom: 0 !important; }
+            
+            .cuadro-teclado-oficial button {
+                background-color: #1e293b !important; color: #f8fafc !important;
+                border: 1px solid #334155 !important; border-radius: 8px !important;
+                font-size: 22px !important; font-weight: bold !important; height: 56px !important;
             }
-            /* Bloqueo Flexbox: Prohíbe terminantemente que los números se apilen hacia abajo */
-            .recuadro-protector-campo [data-testid="stHorizontalBlock"] {
-                flex-direction: row !important;
-                display: flex !important;
-                gap: 8px !important;
-                margin-bottom: 8px !important;
-            }
-            .recuadro-protector-campo [data-testid="stHorizontalBlock"] div[data-testid="column"] {
-                width: 33.333% !important;
-                flex: 1 1 33.333% !important;
-                max-width: 33.333% !important;
-                margin-bottom: 0 !important;
-            }
-            .recuadro-protector-campo button {
-                background-color: #0f172a !important;
-                color: #f8fafc !important;
-                border: 1px solid #334155 !important;
-                border-radius: 6px !important;
-                font-size: 20px !important;
-                font-weight: bold !important;
-                height: 52px !important;
-            }
-            .recuadro-protector-campo button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
-            .recuadro-protector-campo button[key="btn_k_RETROCESO"] p { color: #ef4444 !important; }
-            .recuadro-protector-campo .barra-borrar-real button { background-color: #ef4444 !important; border: 1px solid #b91c1c !important; height: 46px !important; }
-            .recuadro-protector-campo .barra-borrar-real button p { color: #ffffff !important; font-weight: bold !important; }
-            .recuadro-protector-campo .barra-borrar-real button:active { background-color: #dc2626 !important; }
-            .recuadro-protector-campo .columna-enter-vertical button { background-color: #1e293b !important; color: #38bdf8 !important; border: 2px solid #334155 !important; height: 232px !important; font-size: 18px !important; }
+            .cuadro-teclado-oficial button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
+            
+            /* 🟥 Barra Roja Horizontal de Borrado Total */
+            .cuadro-teclado-oficial .barra-roja-clear button { background-color: #ef4444 !important; border: 1px solid #dc2626 !important; height: 52px !important; }
+            .cuadro-teclado-oficial .barra-roja-clear button p { color: #ffffff !important; font-weight: bold !important; font-size: 18px !important; }
+            
+            /* 🟦 Barra Azul Horizontal de ENTER */
+            .cuadro-teclado-oficial .barra-azul-enter button { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; height: 54px !important; }
+            .cuadro-teclado-oficial .barra-azul-enter button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
         </style>
     """)
     
-    st.subheader("📍 Identificación de Campo")
-    st.session_state.cc_activo_meson = st.selectbox(
-        "Origen (Centro de Costo)",
-        ["Seleccione Centro de Costo...", "Las Rosas (CC 01)", "Chipana (CC 02)"],
-        key="cc_selector_agricola"
+    st.subheader("📌 Lector de Ficha Express")
+    st.caption("Digite el ID de 3 dígitos (100-200) o presione la cámara para leer el QR:")
+
+    if "id_express_cosecha" not in st.session_state: 
+        st.session_state.id_express_cosecha = ""
+    id_crudo = st.session_state.id_express_cosecha
+
+    # Forzamos la zona horaria chilena para validar únicamente las fichas de hoy
+    tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+    fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+    
+    ficha_es_valida = False
+    if id_crudo.isdigit() and 100 <= int(id_crudo) <= 200:
+        try:
+            doc_ficha = db.collection("credenciales_activas_dia").document(id_crudo).get()
+            if doc_ficha.exists:
+                datos_f = doc_ficha.to_dict()
+                # Filtro estricto: solo sirve si se enroló en la fecha actual de Chile
+                if datos_f.get("FechaFiltro") == fecha_hoy_str:
+                    ficha_es_valida = True
+                    st.session_state.rut_cosechador = datos_f.get("RutCosechador", "")
+                    st.session_state.cc_activo_meson = datos_f.get("CentroCosto", "")
+                    st.session_state.contratista_activo_meson = datos_f.get("Contratista", "")
+        except Exception: 
+            ficha_es_valida = False
+
+    icono_verificacion = "✅" if ficha_es_valida else "🛑"
+    
+    st.markdown('<div class="cuadro-teclado-oficial">', unsafe_allow_html=True)
+    
+    # Cabecera interactiva con Visor e ícono de cámara QR de tu fotografía
+    col_v_txt, col_v_ico = st.columns([3, 1])
+    with col_v_txt:
+        st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:50px; margin-bottom:0; background-color:#0f172a;">#{id_crudo if id_crudo else "---"}</div>', unsafe_allow_html=True)
+    with col_v_ico:
+        # Cámara emergente para escanear el QR térmico del balde en vivo
+        with st.popover("📷", use_container_width=True):
+            cam_balde = st.camera_input("Enfoque el código QR express del balde:", key="cam_reader_balde_term")
+            if cam_balde:
+                st.info("Lectura procesada.")
+                # Lógica de puente: si la cámara lee un ID válido, lo asigna directo
+                st.session_state.id_express_cosecha = st.text_input("Confirmar ID detectado:", key="bridge_id_input")
+
+    st.write("")
+    
+    # Matriz Numérica del 1 al 9
+    filas_num = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
+    for fila in filas_num:
+        cols = st.columns(3)
+        for idx, digito in enumerate(fila):
+            with cols[idx]:
+                if st.button(digito, key=f"btn_term_fijo_{digito}", use_container_width=True):
+                    if len(st.session_state.id_express_cosecha) < 3:
+                        st.session_state.id_express_cosecha += digito
+                        st.rerun()
+                        
+    # Hilera Inferior: K, 0 y botón gris ← para borrar un solo dígito
+    col_inf1, col_inf2, col_inf3 = st.columns(3)
+    with col_inf1:
+        if st.button("K", key="btn_term_K_fijo", use_container_width=True):
+            if len(st.session_state.id_express_cosecha) < 3:
+                st.session_state.id_express_cosecha += "K"
+                st.rerun()
+    with col_inf2:
+        if st.button("0", key="btn_term_0_fijo", use_container_width=True):
+            if len(st.session_state.id_express_cosecha) < 3:
+                st.session_state.id_express_cosecha += "0"
+                st.rerun()
+    with col_inf3:
+        if st.button("←", key="btn_term_RETRO_1_fijo", use_container_width=True):
+            st.session_state.id_express_cosecha = st.session_state.id_express_cosecha[:-1]
+            st.rerun()
+            
+    # 🟥 Línea Roja Horizontal de Borrado Total
+    st.write("")
+    st.markdown('<div class="barra-roja-clear">', unsafe_allow_html=True)
+    if st.button("borrar", key="btn_term_CLEAR_M_fijo", use_container_width=True):
+        st.session_state.id_express_cosecha = ""
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 🟦 Línea Azul Horizontal de ENTER
+    st.write("")
+    st.markdown('<div class="barra-azul-enter">', unsafe_allow_html=True)
+    if st.button("enter", key="btn_term_ENTER_M_fijo", use_container_width=True):
+        if ficha_es_valida: st.success("🔓 Ficha Cargada")
+        else: st.error("❌ Ficha Vacía")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.session_state.rut_bloqueado_operacion = not ficha_es_valida
+# ==================================================================
+# 4.C FUNCIÓN ESPEJO: ENROLAMIENTO MATINAL (DISEÑO EXACTO FOTO)
+# ==================================================================
+def dibujar_teclado_enrolamiento_antivero():
+    st.html("""
+        <style>
+            .cuadro-teclado-enrol { max-width: 350px; margin: 10px auto; box-sizing: border-box; }
+            .cuadro-teclado-enrol [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
+            .cuadro-teclado-enrol div[data-testid="column"] { margin-bottom: 0 !important; }
+            
+            .cuadro-teclado-enrol button {
+                background-color: #1e293b !important; color: #f8fafc !important;
+                border: 1px solid #334155 !important; border-radius: 8px !important;
+                font-size: 22px !important; font-weight: bold !important; height: 56px !important;
+            }
+            .cuadro-teclado-enrol button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
+            
+            /* 🟥 Barra Roja Horizontal de Borrado Total (C) */
+            .cuadro-teclado-enrol .barra-roja-clear-enrol button { background-color: #ef4444 !important; border: 1px solid #dc2626 !important; height: 52px !important; }
+            .cuadro-teclado-enrol .barra-roja-clear-enrol button p { color: #ffffff !important; font-weight: bold !important; font-size: 18px !important; }
+            
+            /* 🟦 Barra Azul Horizontal de ENTER */
+            .cuadro-teclado-enrol .barra-azul-enter-enrol button { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; height: 54px !important; }
+            .cuadro-teclado-enrol .barra-azul-enter-enrol button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
+        </style>
+    """)
+    
+    st.subheader("📍 Identificación de Campo (Matinal)")
+    
+    st.subheader("📍 Identificación de Campo (Matinal)")
+    
+    # Conectamos el selector matinal directo a la lista dinámica de Firebase
+    cc_manana = st.selectbox(
+        "Origen (Centro de Costo)", 
+        ["Seleccione Centro de Costo...", *lista_cc_dinamica], 
+        key="cc_selector_agricola_enrol_fijo"
     )
-    st.session_state.contratista_activo_meson = st.selectbox(
-        "Contratista Destino (Kame B2B)",
-        [
-            "Seleccione Contratista...",
-            "76.543.210-K | Servicios Agrícolas del Maule",
-            "77.123.456-7 | Agrícola San Fernando Limitada",
-            "76.999.888-2 | Mano de Obra Terreno SpA"
-        ],
-        key="contratista_selector_b2b"
+    
+    # Conectamos el contratista matinal directo a la lista dinámica de Firebase
+    contratista_manana = st.selectbox(
+        "Contratista Destino (Kame B2B)", 
+        ["Seleccione Contratista...", *lista_b2b_dinamica], 
+        key="contratista_selector_b2b_enrol_fijo"
     )
-    rut_crudo = st.session_state.rut_cosechador
+
+
+    st.write("")
+    st.markdown("<label>👤 RUT Cosechador a Enrolar</label>", unsafe_allow_html=True)
+
+    if "rut_asistencia_matinal" not in st.session_state: 
+        st.session_state.rut_asistencia_matinal = ""
+    rut_crudo = st.session_state.rut_asistencia_matinal
     rut_visible = f"{rut_crudo[:-1]}-{rut_crudo[-1]}".upper() if len(rut_crudo) > 1 else rut_crudo.upper()
     if not rut_crudo: rut_visible = "00.000.000-0"
     
@@ -99,44 +206,143 @@ def dibujar_teclado_maqueta_antivero():
     rut_es_valido = main.validar_rut_chileno(rut_crudo) if (rut_crudo and hasattr(main, 'validar_rut_chileno')) else False
     icono_verificacion = "✅" if rut_es_valido else "🛑"
     
-    col_visor_texto, col_visor_icono = st.columns([4, 1])
+    st.markdown('<div class="cuadro-teclado-enrol">', unsafe_allow_html=True)
+    
+    col_visor_texto, col_visor_icono = st.columns([3, 1])
     with col_visor_texto:
         st.markdown(f'<div class="rut-display-box" style="font-size:22px; min-height:48px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
     with col_visor_icono:
         st.markdown(f'<div class="rut-display-box" style="font-size:22px; min-height:48px; margin-bottom:0; background-color:#1e293b; text-align:center;">{icono_verificacion}</div>', unsafe_allow_html=True)
         
-    st.markdown('<div class="cuadro-maqueta-rut">', unsafe_allow_html=True)
-    col_bloque_numeros, col_bloque_enter = st.columns([3, 1])
-    with col_bloque_numeros:
-        filas_maqueta = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0", "K", "←"]]
-        for fila in filas_maqueta:
-            cols_n = st.columns(3)
-            for idx, digito in enumerate(fila):
-                with cols_n[idx]:
-                    if digito == "←":
-                        if st.button("←", key="btn_k_RETROCESO", use_container_width=True):
-                            st.session_state.rut_cosechador = st.session_state.rut_cosechador[:-1]
-                            st.rerun()
-                    else:
-                        if st.button(digito, key=f"btn_k_{digito}", use_container_width=True):
-                            if len(st.session_state.rut_cosechador) < 9:
-                                st.session_state.rut_cosechador += digito
-                                st.rerun()
-                                
-        st.markdown('<div class="barra-borrar-real">', unsafe_allow_html=True)
-        if st.button("borrar", key="btn_k_BORRAR_TODO", use_container_width=True):
-            st.session_state.rut_cosechador = ""
+    st.write("")
+    
+    # Matriz del 1 al 9
+    filas_maqueta = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
+    for fila in filas_maqueta:
+        cols_n = st.columns(3)
+        for idx, digito in enumerate(fila):
+            with cols_n[idx]:
+                if st.button(digito, key=f"btn_enrol_{digito}", use_container_width=True):
+                    if len(st.session_state.rut_asistencia_matinal) < 9:
+                        st.session_state.rut_asistencia_matinal += digito
+                        st.rerun()
+                        
+    # Hilera Inferior: K, 0 y botón gris ← para borrar un solo dígito
+    col_inf1, col_inf2, col_inf3 = st.columns(3)
+    with col_inf1:
+        if st.button("K", key="btn_enrol_K", use_container_width=True):
+            if len(st.session_state.rut_asistencia_matinal) < 9:
+                st.session_state.rut_asistencia_matinal += "K"
+                st.rerun()
+    with col_inf2:
+        if st.button("0", key="btn_enrol_0", use_container_width=True):
+            if len(st.session_state.rut_asistencia_matinal) < 9:
+                st.session_state.rut_asistencia_matinal += "0"
+                st.rerun()
+    with col_inf3:
+        if st.button("←", key="btn_enrol_RETRO_1", use_container_width=True):
+            st.session_state.rut_asistencia_matinal = st.session_state.rut_asistencia_matinal[:-1]
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_bloque_enter:
-        st.markdown('<div class="columna-enter-vertical">', unsafe_allow_html=True)
-        if st.button("E\nN\nT\nE\nR", key="btn_k_ENTER_CONFIRM", use_container_width=True):
-            if rut_es_valido: st.success("🔓 Confirmado")
-            else: st.error("❌ Inválido")
-        st.markdown('</div>', unsafe_allow_html=True)
+            
+    # 🟥 Barra Roja Horizontal de Borrado Total (C)
+    st.write("")
+    st.markdown('<div class="barra-roja-clear-enrol">', unsafe_allow_html=True)
+    if st.button("C", key="btn_enrol_CLEAR_M", use_container_width=True):
+        st.session_state.rut_asistencia_matinal = ""
+        st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    st.session_state.rut_bloqueado_operacion = not rut_es_valido
+    
+    # 🟦 Barra Azul Horizontal de ENTER (Validar Ingreso)
+    st.write("")
+    st.markdown('<div class="barra-azul-enter-enrol">', unsafe_allow_html=True)
+    bloqueo_enrol = not rut_es_valido or cc_manana == "Seleccione Centro de Costo..." or contratista_manana == "Seleccione Contratista..."
+    
+    if st.button("💾 ENTER (Validar Ingreso)", key="btn_enrol_ENTER_M", use_container_width=True, disabled=bloqueo_enrol):
+        try:
+            tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+            ahora_cl = datetime.datetime.now(tz_cl)
+            fecha_hoy_str = ahora_cl.strftime("%Y-%m-%d")
+            
+            # Consultamos la base para buscar el ID express disponible hoy
+            ya_enrolados = db.collection("credenciales_activas_dia").where("FechaFiltro", "==", fecha_hoy_str).stream()
+            numeros_ocupados = [int(doc.to_dict().get("id_express")) for doc in ya_enrolados if doc.to_dict().get("id_express")]
+            
+            id_express = 100
+            for num in range(100, 201):
+                if num not in numeros_ocupados:
+                    id_express = num
+                    break
+                    
+            rut_limpio = rut_crudo.replace(".", "").replace("-", "").strip().lower()
+            
+            # 🚀 CÓDIGO LARGO HISTÓRICO DE AUDITORÍA PERFECTO 🚀
+            codigo_largo_auditoria = f"{ahora_cl.strftime('%Y%m%d')}-{rut_limpio}-{id_express}"
+            
+            db.collection("credenciales_activas_dia").document(str(id_express)).set({
+                "id_express": str(id_express),
+                "RutCosechador": rut_limpio,
+                "CentroCosto": cc_manana,
+                "Contratista": contratista_manana,
+                "CodigoLargoAuditoria": codigo_largo_auditoria,
+                "FechaEnrolamiento": ahora_cl,
+                "FechaFiltro": fecha_hoy_str
+            })
+            
+            qr = qrcode.QRCode(version=1, box_size=8, border=1)
+            qr.add_data(str(id_express))
+            qr.make(fit=True)
+            
+            buf = io.BytesIO()
+            qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+            
+            st.session_state.qr_render_actual = buf.getvalue()
+            st.session_state.id_render_actual = id_express
+            st.session_state.rut_asistencia_matinal = ""
+            st.rerun()
+        except Exception as ex:
+            st.error(f"❌ Error en el enrolamiento: {ex}")
+            
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Despliegue del Ticket QR impreso en pantalla con Botón de Impresión al Costado
+    qr_activo = st.session_state.get("qr_render_actual", None)
+    if "imprimir_ficha_trigger" not in st.session_state:
+        st.session_state.imprimir_ficha_trigger = False
+        
+    if qr_activo:
+        st.write("")
+        with st.container(border=True):
+            # Dividimos la tarjeta en 2 columnas simétricas
+            col_ticket_qr, col_ticket_btn = st.columns([1.5, 1.5])
+            
+            with col_ticket_qr:
+                st.image(qr_activo, caption=f"Ficha #{st.session_state.id_render_actual} Generada", width=160)
+                
+            with col_ticket_btn:
+                st.write("")
+                st.write("")
+                # Botón de impresión instantánea al costado del QR
+                if st.button("🖨️ IMPRIMIR FICHA", key="btn_print_ficha_matinal", use_container_width=True, type="primary"):
+                    st.session_state.imprimir_ficha_trigger = True
+                    st.rerun()
+                    
+                st.write("")
+                if st.button("🗑️ Siguiente Operario", key="clear_qr_view", use_container_width=True):
+                    st.session_state.qr_render_actual = None
+                    st.session_state.imprimir_ficha_trigger = False
+                    st.rerun()
+                    
+            # Disparador JavaScript que envía la orden física directa a la ticketera térmica
+            if st.session_state.imprimir_ficha_trigger:
+                st.session_state.imprimir_ficha_trigger = False
+                st.html("""
+                    <script>
+                        setTimeout(function() {
+                            window.parent.print();
+                        }, 150);
+                    </script>
+                """)
 
 
 # ==================================================================
@@ -153,76 +359,40 @@ st.html("""
             --border-color: #334155;
             --accent-blue: #38bdf8;
         }
-        /* Forzamos estilos oscuros en la interfaz */
-        .stApp {
-            background-color: var(--bg-dark) !important;
-            color: var(--text-light) !important;
+        .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
+        .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
+        .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
+        .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
+        .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
+        div[data-testid="stButton"] button { 
+            background-color: var(--panel-bg) !important; 
+            color: var(--text-light) !important; 
+            border: 1px solid var(--border-color) !important; 
+            font-weight: bold !important; 
+            font-size: 15px !important; 
         }
-        .antivero-header {
-            background: var(--panel-bg);
-            padding: 15px 20px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border: 1px solid var(--border-color);
+        div[data-testid="stButton"] button p { 
+            color: var(--text-light) !important; 
         }
-        .antivero-header h1 {
-            margin: 0;
-            font-size: 22px;
-            color: var(--accent-blue) !important;
-            font-weight: bold;
+        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { 
+            background-color: var(--accent-blue) !important; 
+            color: var(--bg-dark) !important; 
+            border-color: var(--accent-blue) !important; 
         }
-        .stSelectbox label, .stTextInput label {
-            font-weight: 700 !important;
-            font-size: 12px !important;
-            color: var(--text-muted) !important;
-            text-transform: uppercase !important;
+        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { 
+            color: var(--bg-dark) !important; 
         }
-        .rut-display-box {
-            background: var(--bg-dark);
-            border: 2px solid #475569;
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            font-size: 26px;
-            font-weight: bold;
-            color: var(--accent-blue);
-            min-height: 58px;
-            margin-bottom: 10px;
-        }
-        /* REGLAS CRÍTICAS PARA VISIBILIDAD DE BOTONES TÁCTILES EN TABLETS */
-        div[data-testid="stButton"] button {
-            background-color: var(--panel-bg) !important;
-            color: var(--text-light) !important;
-            border: 1px solid var(--border-color) !important;
-            font-weight: bold !important;
-            font-size: 15px !important;
-        }
-        div[data-testid="stButton"] button p {
-            color: var(--text-light) !important;
-        }
-        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus {
-            background-color: var(--accent-blue) !important;
-            color: var(--bg-dark) !important;
-            border-color: var(--accent-blue) !important;
-        }
-        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p {
-            color: var(--bg-dark) !important;
-        }
-        /* RESPONSIVIDAD DINÁMICA: DETECTA CELULAR VERTICAL O GIROS EN TERRENO */
         @media (max-width: 768px) {
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] {
-                flex-direction: column !important;
+            .stMainBlock > div > [data-testid="stHorizontalBlock"] { 
+                flex-direction: column !important; 
             }
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-                width: 100% !important;
-                margin-left: 0 !important;
-                margin-bottom: 15px !important;
+            .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
+                width: 100% !important; 
+                margin-left: 0 !important; 
+                margin-bottom: 15px !important; 
             }
-            .antivero-header h1 {
-                font-size: 18px;
+            .antivero-header h1 { 
+                font-size: 18px; 
             }
         }
         div[data-testid="stElementToolbar"] { display: none !important; }
@@ -240,11 +410,11 @@ fecha_actual = ahora_chile.strftime("%d/%m/%Y")
 
 st.html(f"""
 <div class="antivero-header">
-<div>
-<h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
-<div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Fecha de Campo: {fecha_actual}</div>
-</div>
-<div style="font-weight: bold; font-size: 24px; color: #38bdf8;">{hora_actual}</div>
+    <div>
+        <h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
+        <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Fecha de Campo: {fecha_actual}</div>
+    </div>
+    <div style="font-weight: bold; font-size: 24px; color: #38bdf8;">{hora_actual}</div>
 </div>
 """)
 
@@ -258,11 +428,75 @@ if "rut_cosechador" not in st.session_state:
 if "id_usuario_activo" not in st.session_state:
     st.session_state.id_usuario_activo = ""
 
-# 🚀 GATILLO DE TERRENO: Descarga automática del día para el historial en vivo del operario 🚀
+# ==================================================================
+# SINCRONIZACIÓN AUTOMÁTICA EN VIVO DEL CATÁLOGO DESDE FIREBASE
+# ==================================================================
+# 1. Lectura de Centros de Costo con respaldo estático original
+try:
+    docs_cc = db.collection("config_centros").order_by("nombre").stream()
+    lista_cc_dinamica = [doc.to_dict().get("nombre") for doc in docs_cc if doc.to_dict().get("nombre")]
+    if not lista_cc_dinamica:
+        lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
+except Exception:
+    lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
+
+# 2. Lectura de Contratistas con respaldo estático original
+try:
+    docs_b2b = db.collection("config_contratistas").order_by("fecha_creacion", direction=firestore.Query.DESCENDING).stream()
+    lista_b2b_dinamica = [doc.to_dict().get("formato_kame") for doc in docs_b2b if doc.to_dict().get("formato_kame")]
+    if not lista_b2b_dinamica:
+        lista_b2b_dinamica = [
+            "76.543.210-K | Servicios Agrícolas del Maule",
+            "77.123.456-7 | Agrícola San Fernando Limitada",
+            "76.999.888-2 | Mano de Obra Terreno SpA"
+        ]
+except Exception:
+    lista_b2b_dinamica = [
+        "76.543.210-K | Servicios Agrícolas del Maule",
+        "77.123.456-7 | Agrícola San Fernando Limitada",
+        "76.999.888-2 | Mano de Obra Terreno SpA"
+    ]
+
+# 3. Lectura de Flores y Variedades del Catálogo (Clasificación Botánica Estricta)
+diccionario_flores_dinamico = {
+    "Ranunculo Romance": [], 
+    "Ranunculo Elegance": [], 
+    "Peonía": [], 
+    "Delphinium": []
+}
+try:
+    docs_flores = db.collection("config_flores").stream()
+    for doc in docs_flores:
+        dat = doc.to_dict()
+        fam_cruda = str(dat.get("familia", "")).strip().lower()
+        cod_f = dat.get("codigo")
+        nom_f = dat.get("nombre", "Sin Nombre")
+        color_f = dat.get("color", "#94a3b8")
+        
+        if cod_f is not None and nom_f != "Sin Nombre":
+            objeto_flor = {"codigo": int(cod_f), "nombre": str(nom_f), "color": str(color_f)}
+            
+            # Clasificación por hilos de texto exactos de la especie
+            if "romance" in fam_cruda:
+                diccionario_flores_dinamico["Ranunculo Romance"].append(objeto_flor)
+            elif "elegance" in fam_cruda:
+                diccionario_flores_dinamico["Ranunculo Elegance"].append(objeto_flor)
+            elif "peon" in fam_cruda:
+                diccionario_flores_dinamico["Peonía"].append(objeto_flor)
+            elif "delphi" in fam_cruda:
+                diccionario_flores_dinamico["Delphinium"].append(objeto_flor)
+except Exception as e_cat_flores:
+    st.caption(f"⚠️ Alerta catálogo: {e_cat_flores}")
+
+
+except Exception:
+    pass
+
+# GATILLO DE TERRENO: Descarga automática de registros bajo huso horario estricto chileno
 lista_datos_dia = []
 try:
-    inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
-    fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+    inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zona_chile)
+    fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zona_chile)
     docs_hoy = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_hoy).where("FechaRegistro", "<=", fin_hoy).stream()
     lista_datos_dia = [doc.to_dict() for doc in docs_hoy]
     st.session_state.lista_datos_dia_cache = lista_datos_dia
@@ -274,19 +508,18 @@ except Exception as e_consulta_automatica:
 # ==================================================================
 if not st.session_state.usuario_conectado:
     st.html("""
-        <form style="display:none;" autocomplete="off">
-            <input type="text" name="username_fake" autocomplete="new-username" />
-            <input type="password" name="password_fake" autocomplete="new-password" />
-        </form>
-        <style>
-            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
-                -webkit-text-fill-color: #f8fafc !important;
-                transition: background-color 5000s ease-in-out 0s;
-            }
-        </style>
+    <form style="display:none;" autocomplete="off">
+        <input type="text" name="username_fake" autocomplete="new-username" />
+        <input type="password" name="password_fake" autocomplete="new-password" />
+    </form>
+    <style>
+        input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f8fafc !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+    </style>
     """)
-    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
-    
+    st.markdown("<h3 style='text-align: center; color: #38bdf8;'> Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown("### Iniciar Sesión")
         input_usuario = st.text_input("INGRESA TU RUT O CORREO ADMINISTRADOR:", placeholder="Ej: admin@antivero.cl", key="auth_login_user").strip().lower()
@@ -304,7 +537,8 @@ if not st.session_state.usuario_conectado:
         }, 250);
         </script>
         """)
-        if st.button("🔑 Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
+        
+        if st.button(" Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
             if input_usuario and input_clave:
                 try:
                     user_ref = db.collection("usuarios").document(input_usuario).get()
@@ -314,31 +548,28 @@ if not st.session_state.usuario_conectado:
                             st.session_state.usuario_conectado = True
                             st.session_state.rol_usuario = datos_user.get("rol", "operario")
                             st.session_state.id_usuario_activo = input_usuario
-                            st.success(f"✅ Acceso concedido como: {st.session_state.rol_usuario.upper()}")
+                            st.success(f" Acceso concedido como: {st.session_state.rol_usuario.upper()}")
                             st.fragment(lambda: None)
                             st.rerun()
                         else:
-                            st.error("❌ La contraseña ingresada es incorrecta.")
+                            st.error(" La contraseña ingresada es incorrecta.")
                     else:
-                        st.error("❌ El usuario ingresado no está registrado en el sistema agrícola.")
+                        st.error(" El usuario ingresado no está registrado en el sistema agrícola.")
                 except Exception as e:
-                    st.error(f"❌ Error de conexión con el servidor de Google: {e}")
+                    st.error(f" Error de conexión con el servidor de Google: {e}")
             else:
-                st.warning("⚠️ Por favor, complete ambos campos.")
-
-    # 🔒 EL ESCUDO MÁSTER: Detiene la ejecución absoluta para que NO se dibuje la terminal abajo si no se ha logueado
+                st.warning(" Por favor, complete ambos campos.")
     st.stop()
 
 # ==================================================================
 # 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
 # ==================================================================
 with st.sidebar:
-    st.markdown(f"👤 **Usuario Activo:** `{st.session_state.id_usuario_activo.upper()}`")
-    st.markdown(f"⚙️ **Rol:** `{st.session_state.rol_usuario.upper()}`")
+    st.markdown(f" **Usuario Activo:** `{st.session_state.id_usuario_activo.upper()}`")
+    st.markdown(f" **Rol:** `{st.session_state.rol_usuario.upper()}`")
     st.write("---")
     
-    # FORMULARIO UNIVERSAL: Cambiar contraseña de la cuenta en uso
-    with st.expander("🔒 Cambiar mi Contraseña", expanded=False):
+    with st.expander(" Cambiar mi Contraseña", expanded=False):
         with st.form("form_cambio_clave_universal", clear_on_submit=True):
             nueva_p1 = st.text_input("Nueva Contraseña:", type="password", key="univ_p1")
             nueva_p2 = st.text_input("Confirmar Contraseña:", type="password", key="univ_p2")
@@ -352,12 +583,10 @@ with st.sidebar:
                 else:
                     st.error("Las claves no coinciden o tienen menos de 4 caracteres.")
 
-    # SECCIÓN EXCLUSIVA PARA ADMINISTRADORES: GESTIÓN DE PERSONAL
     if st.session_state.rol_usuario == "admin":
         st.write("---")
-        st.markdown("### 🛠️ Herramientas de Administrador")
-        
-        with st.expander("👤 Registrar Nuevo Operario", expanded=False):
+        st.markdown("### Herramientas de Administrador")
+        with st.expander(" Registrar Nuevo Operario", expanded=False):
             with st.form("form_registro_interno_admin", clear_on_submit=True):
                 reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
                 reg_clave = st.text_input("Contraseña inicial:", type="password", key="admin_reg_pass")
@@ -365,33 +594,32 @@ with st.sidebar:
                     if reg_rut and len(reg_clave) >= 4:
                         try:
                             if db.collection("usuarios").document(reg_rut).get().exists:
-                                st.error("❌ Este RUT ya existe en los registros.")
+                                st.error(" Este RUT ya existe en los registros.")
                             else:
                                 db.collection("usuarios").document(reg_rut).set({"password": reg_clave, "rol": "operario"})
                                 st.success(f"¡RUT {reg_rut} creado con éxito!")
                         except Exception as e:
                             st.error(f"Error: {e}")
                     else:
-                        st.warning("⚠️ Datos inválidos o clave muy corta.")
-                        
+                        st.warning(" Datos inválidos o clave muy corta.")
         with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
             with st.form("form_eliminar_operario", clear_on_submit=True):
                 rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario SpA.")
+                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
                 if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
                     if rut_a_borrar and confirmar_check:
                         try:
                             doc_ref = db.collection("usuarios").document(rut_a_borrar)
                             if doc_ref.get().exists:
                                 doc_ref.delete()
-                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado de FirebaseSpA!")
+                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado!")
                             else:
                                 st.error("❌ El RUT ingresado no existe.")
                         except Exception as e:
                             st.error(f"Error al eliminar: {e}")
                     else:
                         st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
-                        
+
         with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
             try:
                 solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
@@ -410,13 +638,14 @@ with st.sidebar:
                                 st.rerun()
             except Exception as e:
                 st.caption(f"Error al leer alertas: {e}")
-                
+
     st.write("---")
     if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
         st.session_state.usuario_conectado = False
         st.session_state.rol_usuario = "operario"
         st.session_state.id_usuario_activo = ""
         st.rerun()
+
 # ==================================================================
 # ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
 # ==================================================================
@@ -451,25 +680,209 @@ def formatear_rut_chileno_completo(rut_str):
         return f"{cuerpo}-{dv}"
 
 # ==================================================================
-# 5. MAQUETADO EN COLUMNAS (IDENTIFICACIÓN Y FLUJO CENTRAL)
+# 5. ENRUTADOR DE PESTAÑAS AGRÍCOLAS REFORZADO (3 CASILLAS)
 # ==================================================================
-if "admin_tab_filtro_rut" not in st.session_state:
-    st.session_state.admin_tab_filtro_rut = ""
-
 if st.session_state.rol_usuario == "admin":
-    tab_terminal, tab_auditoria = st.tabs(["🚜 Terminal de Cosecha", "📊 Panel de Control y Auditoría"])
+    tab_terminal, tab_credenciales, tab_auditoria = st.tabs([
+        "🚜 Terminal de Cosecha", 
+        "📋 Credenciales del Día (Fichas express)", 
+        "📊 Panel de Control y Auditoría"
+    ])
 else:
-    tab_terminal = st.container()
+    tab_terminal, tab_credenciales = st.tabs([
+        "🚜 Terminal de Cosecha", 
+        "📋 Credenciales del Día (Fichas express)"
+    ])
     tab_auditoria = None
+    with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
+        with st.form("form_eliminar_operario", clear_on_submit=True):
+            rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
+            confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario SpA.")
+            if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
+                if rut_a_borrar and confirmar_check:
+                    try:
+                        doc_ref = db.collection("usuarios").document(rut_a_borrar)
+                        if doc_ref.get().exists:
+                            doc_ref.delete()
+                            st.success(f"¡El usuario {rut_a_borrar} fue eliminado de FirebaseSpA!")
+                        else:
+                            st.error("❌ El RUT ingresado no existe.")
+                    except Exception as e:
+                        st.error(f"Error al eliminar: {e}")
+                else:
+                    st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
+
+                        
+        with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
+            try:
+                solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
+                lista_sol = [s.to_dict() for s in solicitudes]
+                if not lista_sol:
+                    st.caption("No hay alertas pendientes.")
+                else:
+                    for s in lista_sol:
+                        st.warning(f"⚠️ Usuario: {s['usuario']}")
+                        nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
+                        if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
+                            if len(nueva_clave_express) >= 4:
+                                db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
+                                db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
+                                st.success("¡Clave reconfigurada con éxito!")
+                                st.rerun()
+            except Exception as e:
+                st.caption(f"Error al leer alertas: {e}")
+                
+    st.write("---")
+    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
+        st.session_state.usuario_conectado = False
+        st.session_state.rol_usuario = "operario"
+        st.session_state.id_usuario_activo = ""
+        st.rerun()
+
+# ==================================================================
+# ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
+# ==================================================================
+def validar_rut_chileno(rut_str):
+    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
+    if len(rut_limpio) < 2: return False
+    cuerpo = rut_limpio[:-1]
+    dv_ingresado = rut_limpio[-1]
+    if not cuerpo.isdigit(): return False
+    suma = 0
+    multiplicador = 2
+    for c in reversed(cuerpo):
+        suma += int(c) * multiplicador
+        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
+    remat = 11 - (suma % 11)
+    dv_esperado = "0" if remat == 11 else ("K" if remat == 10 else str(remat))
+    return dv_ingresado == dv_esperado
+
+# ==================================================================
+# FORMATEADOR MAESTRO DE RUT DIARIO (PUNTOS Y GUION AUTOMÁTICOS)
+# ==================================================================
+def formatear_rut_chileno_completo(rut_str):
+    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
+    if len(rut_limpio) < 2:
+        return rut_limpio
+    cuerpo = rut_limpio[:-1]
+    dv = rut_limpio[-1]
+    if cuerpo.isdigit():
+        cuerpo_int = int(cuerpo)
+        return f"{cuerpo_int:,}-{dv}".replace(",", ".")
+    else:
+        return f"{cuerpo}-{dv}"
+
+# --- CONTENIDO DE LA PESTAÑA CENTRAL: REGISTRO DE CREDENCIALES ---
+with tab_credenciales:
+    st.markdown("<h2 style='color:#38bdf8;'>📋 Registro y Enrolamiento de Fichas Express</h2>", unsafe_allow_html=True)
+    st.caption("Configure el contratista, digite el RUT en el teclado espejo para otorgar un ID con QR.")
+    
+    col_enrol_izq, col_enrol_der = st.columns([1.3, 2.7])
+    with col_enrol_izq:
+        dibujar_teclado_enrolamiento_antivero()
+    with col_enrol_der:
+        st.markdown("### 📷 Escaneo Automático QR de Cédula (Mesón)")
+        st.caption("Enfoque el código QR del reverso del carnet chileno. El sistema extraerá el RUT automáticamente:")
+        
+        foto_carnet = st.camera_input("Apunte al QR del Registro Civil:", key="scanner_camera_cedula_cl")
+        
+        if foto_carnet:
+            try:
+                import cv2
+                import numpy as np
+                file_bytes = np.frombuffer(foto_carnet.getvalue(), np.uint8)
+                img_decodificable = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                detector_qr = cv2.QRCodeDetector()
+                texto_qr_oficial, _, _ = detector_qr.detectAndDecode(img_decodificable)
+                
+                if texto_qr_oficial:
+                    st.success("🎯 ¡Código QR del carnet detectado con éxito!")
+                    import re
+                    busca_rut = re.search(r'RUN=([0-9Kk\-]+)', texto_qr_oficial)
+                    if busca_rut:
+                        rut_detectado = busca_rut.group(1).replace("-", "").strip().lower()
+                        st.session_state.rut_asistencia_matinal = rut_detectado
+                        st.metric(label="👤 RUT Cargado Automáticamente:", value=formatear_rut_chileno_completo(rut_detectado))
+                        st.info("💡 Presione el botón azul '💾 ENTER' a la izquierda para confirmar su ID y guardar.")
+                    else:
+                        st.warning("⚠️ QR leído correctamente, pero no se encontró la cadena de RUN corporativa.")
+                else:
+                    st.error("❌ El lente no logró enfocar el código QR con suficiente nitidez.")
+            except Exception as e_scan:
+                st.caption(f"💡 Nota de asistencia de cámara: {e_scan}")
+
+        # --- TABLA DE CONTROL EN VIVO DE CREDENCIALES DEL DÍA ---
+        try:
+            tz_local = zoneinfo.ZoneInfo("America/Santiago")
+            fecha_filtro_hoy = datetime.datetime.now(tz_local).strftime("%Y-%m-%d")
+            
+            # Consultamos las fichas que corresponden a la fecha de hoy en Chile
+            docs_enrolados = db.collection("credenciales_activas_dia").where("FechaFiltro", "==", fecha_filtro_hoy).stream()
+            lista_enrolados_dia = [doc.to_dict() for doc in docs_enrolados]
+            
+            if lista_enrolados_dia:
+                df_enrolados = pd.DataFrame(lista_enrolados_dia)
+                import __main__ as main
+                if "RutCosechador" in df_enrolados.columns and hasattr(main, "formatear_rut_chileno_completo"):
+                    df_enrolados["RutCosechador"] = df_enrolados["RutCosechador"].apply(main.formatear_rut_chileno_completo)
+                
+                columnas_asistencia = ["id_express", "RutCosechador", "CentroCosto", "CodigoLargoAuditoria"]
+                df_asistencia_render = df_enrolados[columnas_asistencia].sort_values(by="id_express")
+                
+                # 1. TABLA FLUIDA Y ESTABLE (CERO RECARGAS FANTASMAS)
+                st.dataframe(df_asistencia_render, use_container_width=True, hide_index=True)
+                
+                # 🚀 LA CORRECCIÓN: Declaramos la lista de IDs de hoy directo desde los datos de Firebase 🚀
+                lista_ids_hoy = [str(x) for x in df_asistencia_render["id_express"].tolist()]
+                
+                # 🚀 REGENERADOR INDEPENDIENTE LIBRE DE ERRORES DE INSTANCIACIÓN
+                st.write("")
+                st.markdown("<h4 style='color:#38bdf8;'>🖨️ Módulo de Reimpresión de Fichas Extraviadas</h4>", unsafe_allow_html=True)
+                
+                id_a_recuperar = st.text_input(
+                    "Digite el número de ID Express a recuperar (Ej: 105):",
+                    placeholder="Escriba el número aquí...",
+                    key="input_recuperador_manual_express"
+                ).strip()
+                
+                if st.button("🔄 Regenerar y Cargar QR a la Izquierda", key="btn_ejecutar_reimpresion_limpio", use_container_width=True):
+                    if id_a_recuperar in lista_ids_hoy:
+                        try:
+                            qr_reimp = qrcode.QRCode(version=1, box_size=8, border=1)
+                            qr_reimp.add_data(str(id_a_recuperar))
+                            qr_reimp.make(fit=True)
+                            
+                            buf_reimp = io.BytesIO()
+                            qr_reimp.make_image(fill_color="black", back_color="white").save(buf_reimp, format="PNG")
+                            
+                            st.session_state.qr_render_actual = buf_reimp.getvalue()
+                            st.session_state.id_render_actual = id_a_recuperar
+                            
+                            st.toast(f"🎟️ Ficha #{id_a_recuperar} cargada con éxito a la izquierda.")
+                            st.fragment(lambda: None)
+                            st.rerun()
+                        except Exception as e_reimp:
+                            st.error(f"❌ Error al reconstruir el código QR: {e_reimp}")
+                    elif id_a_recuperar == "":
+                        st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
+                    else:
+                        st.error(f"❌ El ID #{id_a_recuperar} no ha sido enrolado el día de hoy en este fundo.")
+
+
+
+            else:
+                st.info("📝 No hay operarios matriculados hoy.")
+        except Exception as e_t:
+            st.caption(f"Nota de visualización de asistencia: {e_t}")
+
 
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])
-    
     with col_panel_izq:
-        # Llamamos al teclado maqueta blindado por su marco protector rígido
+        # Llamamos al teclado de lectura express de tu fotografía
         dibujar_teclado_maqueta_antivero()
-
+        
     with col_panel_central_derecho:
         if "flor_seleccionada_meson" not in st.session_state:
             st.session_state.flor_seleccionada_meson = None
@@ -477,53 +890,204 @@ with tab_terminal:
             st.session_state.cantidad_varas_meson = 30
             
         col_centro_flujo, col_derecha_consolidacion = st.columns([1.6, 1.2])
-        
         with col_centro_flujo:
             st.subheader("🌸 Selección de Familia de Flores")
-            capa_familias = st.tabs(["🌹 Rosas / Romance / Elegance", "🌸 Peonías", "🌿 Delphinium"])
             
-            # Candado inteligente en vivo leyendo el Session State de la fila izquierda
+            # 🚀 ASIGNACIÓN NOMINAL DIRECTA: Cada variable gobierna su propia lengüeta de forma inmune a errores
+            tab_romance, tab_elegance, tab_peonias, tab_delphi = st.tabs([
+                "🌹 Ranunculo Romance", 
+                "🌸 Ranunculo Elegance", 
+                "🌺 Peonías", 
+                "🌿 Delphinium"
+            ])
+            
             bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
             
-            with capa_familias[0]:
-                st.markdown("<p style='color:#94a3b8; font-size:13px;'>Seleccione variedad para el mesón:</p>", unsafe_allow_html=True)
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    if st.button("Rosas Romance\n(Cód: 220)", key="btn_prod_220", use_container_width=True, disabled=bloqueo_activo):
-                        st.session_state.flor_seleccionada_meson = {"codigo": 220, "nombre": "Rosas Romance"}
-                        st.session_state.cantidad_varas_meson = 30
-                        st.rerun()
-                with col_f2:
-                    if st.button("Rosas Elegance\n(Cód: 221)", key="btn_prod_221", use_container_width=True, disabled=bloqueo_activo):
-                        st.session_state.flor_seleccionada_meson = {"codigo": 221, "nombre": "Rosas Elegance"}
-                        st.session_state.cantidad_varas_meson = 30
-                        st.rerun()
-                        
-            with capa_familias[1]:
-                st.markdown("<p style='color:#94a3b8; font-size:13px;'>Seleccione Peonía:</p>", unsafe_allow_html=True)
-                col_p1, col_p2 = st.columns(2)
-                with col_p1:
-                    if st.button("Sarah Bernhardt\n(Cód: 222)", key="btn_prod_222", use_container_width=True, disabled=bloqueo_activo):
-                        st.session_state.flor_seleccionada_meson = {"codigo": 222, "nombre": "Peonía Sarah Bernhardt"}
-                        st.session_state.cantidad_varas_meson = 30
-                        st.rerun()
-                with col_p2:
-                    if st.button("Festiva Maxima\n(Cód: 223)", key="btn_prod_223", use_container_width=True, disabled=bloqueo_activo):
-                        st.session_state.flor_seleccionada_meson = {"codigo": 223, "nombre": "Peonía Festiva Maxima"}
-                        st.session_state.cantidad_varas_meson = 30
-                        st.rerun()
-                        
-            with capa_familias[2]:
-                st.markdown("<p style='color:#94a3b8; font-size:13px;'>Seleccione Delphinium:</p>", unsafe_allow_html=True)
-                if st.button("Guardian Mix\n(Cód: 224)", key="btn_prod_224", use_container_width=True, disabled=bloqueo_activo):
-                    st.session_state.flor_seleccionada_meson = {"codigo": 224, "nombre": "Delphinium Guardian Mix"}
-                    st.session_state.cantidad_varas_meson = 30
-                    st.rerun()
+            # --- ESTILOS CSS MASTER EXPANDIDOS PARA LAS TARJETAS DE TU FOTO ---
+            st.html("""
+                <style>
+                    .zona-grilla-flores div[data-testid="column"] { margin-bottom: 12px !important; }
+                    .tarjeta-flor-antivero { 
+                        background-color: #1e293b !important; 
+                        border: 1px solid #334155 !important; 
+                        border-left: 6px solid #ec4899 !important; 
+                        border-radius: 10px !important; 
+                        padding: 14px 18px !important; 
+                        width: 100% !important; 
+                        text-align: left !important; 
+                        min-height: 85px; 
+                    }
+                    .punto-color-flor { 
+                        display: inline-block !important; 
+                        width: 14px !important; 
+                        height: 14px !important; 
+                        border-radius: 50% !important; 
+                        margin-right: 10px !important; 
+                        vertical-align: middle !important; 
+                    }
+                </style>
+            """)
+
+            # ==============================================================
+            # PESTAÑA 1: RANUNCULO ROMANCE (CONECTADO A SU VARIABLE PROPIA)
+            # ==============================================================
+            with tab_romance:
+                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Ranunculo Romance:</p>", unsafe_allow_html=True)
+                lista_romance = diccionario_flores_dinamico.get("Ranunculo Romance", [])
+                if not lista_romance:
+                    lista_romance = [
+                        {"codigo": 226, "nombre": "Ranunculo Romance Nohan", "color": "#10b981"},
+                        {"codigo": 227, "nombre": "Ranunculo Romance GetLucky", "color": "#f97316"}
+                    ]
+                
+                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
+                for i in range(0, len(lista_romance), 2):
+                    bloque_par = lista_romance[i:i+2]
+                    cols_f = st.columns(2)
+                    for idx, flor in enumerate(bloque_par):
+                        with cols_f[idx]:
+                            cod_f = flor["codigo"]
+                            nom_f = flor["nombre"]
+                            color_punto = flor.get("color", "#94a3b8")
+                            nombre_limpio = nom_f.replace("Ranunculo Romance ", "").strip()
+                            
+                            if st.button("", key=f"btn_tarjeta_rom_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
+                                st.session_state.cantidad_varas_meson = 30
+                                st.rerun()
+                                
+                            st.html(f"""
+                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
+                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
+                                        {nombre_limpio}
+                                    </div>
+                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
+                                </div>
+                            """)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            # ==============================================================
+            # PESTAÑA 2: RANUNCULO ELEGANCE (CONECTADO A SU VARIABLE PROPIA)
+            # ==============================================================
+            with tab_elegance:
+                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Ranunculo Elegance:</p>", unsafe_allow_html=True)
+                lista_elegance = diccionario_flores_dinamico.get("Ranunculo Elegance", [])
+                if not lista_elegance:
+                    lista_elegance = [
+                        {"codigo": 211, "nombre": "Ranunculo Elegance Rosso", "color": "#ef4444"},
+                        {"codigo": 214, "nombre": "Ranunculo Elegance Bianco", "color": "#ffffff"}
+                    ]
+                
+                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
+                for i in range(0, len(lista_elegance), 2):
+                    bloque_par = lista_elegance[i:i+2]
+                    cols_f = st.columns(2)
+                    for idx, flor in enumerate(bloque_par):
+                        with cols_f[idx]:
+                            cod_f = flor["codigo"]
+                            nom_f = flor["nombre"]
+                            color_punto = flor.get("color", "#94a3b8")
+                            nombre_limpio = nom_f.replace("Ranunculo Elegance ", "").strip()
+                            
+                            if st.button("", key=f"btn_tarjeta_ele_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
+                                st.session_state.cantidad_varas_meson = 30
+                                st.rerun()
+                                
+                            st.html(f"""
+                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
+                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
+                                        {nombre_limpio}
+                                    </div>
+                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
+                                </div>
+                            """)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            # ==============================================================
+            # PESTAÑA 3: PEONÍAS (CONECTADO A SU VARIABLE PROPIA)
+            # ==============================================================
+            with tab_peonias:
+                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Peonía:</p>", unsafe_allow_html=True)
+                lista_peonias = diccionario_flores_dinamico.get("Peonías", [])
+                if not lista_peonias:
+                    lista_peonias = [
+                        {"codigo": 222, "nombre": "Peonía Sarah Bernhardt", "color": "#f472b6"},
+                        {"codigo": 223, "nombre": "Peonía Festiva Maxima", "color": "#ffffff"}
+                    ]
+                
+                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
+                for i in range(0, len(lista_peonias), 2):
+                    bloque_par = lista_peonias[i:i+2]
+                    cols_f = st.columns(2)
+                    for idx, flor in enumerate(bloque_par):
+                        with cols_f[idx]:
+                            cod_f = flor["codigo"]
+                            nom_f = flor["nombre"]
+                            color_punto = flor.get("color", "#94a3b8")
+                            nombre_limpio = nom_f.replace("Peonía ", "").strip()
+                            
+                            if st.button("", key=f"btn_tarjeta_peo_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
+                                st.session_state.cantidad_varas_meson = 30
+                                st.rerun()
+                                
+                            st.html(f"""
+                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
+                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
+                                        {nombre_limpio}
+                                    </div>
+                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
+                                </div>
+                            """)
+                st.markdown('</div>', unsafe_allow_html=True)
+            # ==============================================================
+            # PESTAÑA 4: DELPHINIUM (CONECTADO A SU VARIABLE PROPIA Y LIMPIO)
+            # ==============================================================
+            with tab_delphi:
+                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Delphinium:</p>", unsafe_allow_html=True)
+                lista_delphi = diccionario_flores_dinamico.get("Delphinium", [])
+                
+                if not lista_delphi:
+                    lista_delphi = [{"codigo": 224, "nombre": "Delphinium Guardian Mix", "color": "#3b82f6"}]
+                
+                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
+                for i in range(0, len(lista_delphi), 2):
+                    bloque_par = lista_delphi[i:i+2]
+                    cols_f = st.columns(2)
+                    for idx, flor in enumerate(bloque_par):
+                        with cols_f[idx]:
+                            cod_f = flor["codigo"]
+                            nom_f = flor["nombre"]
+                            color_punto = flor.get("color", "#3b82f6")
+                            nombre_limpio = nom_f.replace("Delphinium ", "").replace("Delfinium ", "").strip()
+                            
+                            if st.button("", key=f"btn_tarjeta_del_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
+                                st.session_state.cantidad_varas_meson = 30
+                                st.rerun()
+                                
+                            st.html(f"""
+                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
+                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
+                                        {nombre_limpio}
+                                    </div>
+                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
+                                </div>
+                            """)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        # ==============================================================
+        # COLUMNA DERECHA REFORZADA: MESÓN DE CARGA ACTUAL (PÁGINA 44)
+        # ==============================================================
         with col_derecha_consolidacion:
             st.markdown("<h2 style='color:#f8fafc;'>📥 Mesón de Carga Actual</h2>", unsafe_allow_html=True)
             
-            # 1. VISOR DE RECOLECCIÓN ACTIVA EN LA INTERFAZ DEL MESÓN
-            rut_aux_meson = st.session_state.rut_cosechador
+            rut_aux_meson = st.session_state.get("rut_cosechador", "")
             rut_final_meson = f"{rut_aux_meson[:-1]}-{rut_aux_meson[-1]}".upper() if len(rut_aux_meson) > 1 else rut_aux_meson.upper()
             if not rut_aux_meson: rut_final_meson = "00.000.000-0"
             
@@ -536,7 +1100,6 @@ with tab_terminal:
                 st.write("")
                 st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
                 
-                # Inyectamos el CSS local de alta prioridad que mimetiza la caja editable con tu diseño
                 st.html("""
                     <style>
                         div[data-testid="stNumberInput"] input {
@@ -550,16 +1113,12 @@ with tab_terminal:
                             height: 52px !important;
                         }
                         input[type=number]::-webkit-inner-spin-button, 
-                        input[type=number]::-webkit-outer-spin-button { 
-                            -webkit-appearance: none; 
-                            margin: 0; 
-                        }
+                        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
                         input[type=number] { -moz-appearance: textfield; }
                         div[data-testid="stNumberInput"] label { display: none !important; }
                     </style>
                 """)
 
-                # Creamos la sub-distribución proporcional para colocar la caja editable y sus botones laterales
                 col_m1, col_m2, col_m3 = st.columns([1, 1.6, 1])
                 with col_m1:
                     if st.button("-5", key="btn_meson_menos_5", use_container_width=True):
@@ -567,14 +1126,9 @@ with tab_terminal:
                         st.rerun()
                         
                 with col_m2:
-                    # Caja de texto numérica 100% editable al tacto en la tablet de campo
                     varas_digitadas = st.number_input(
-                        "Cantidad Varas:",
-                        min_value=0,
-                        max_value=500,
-                        value=int(st.session_state.cantidad_varas_meson),
-                        step=1,
-                        key="input_editable_varas_meson"
+                        "Cantidad Varas:", min_value=0, max_value=500,
+                        value=int(st.session_state.cantidad_varas_meson), step=1, key="input_editable_varas_meson"
                     )
                     if varas_digitadas != st.session_state.cantidad_varas_meson:
                         st.session_state.cantidad_varas_meson = int(varas_digitadas)
@@ -586,29 +1140,26 @@ with tab_terminal:
                         st.rerun()
                 
                 st.write("")
-                # 🚨 CANDADO MULTIPLE DE CONTROL TOTAL ACTUALIZADO 🚨
-                rut_invalido = st.session_state.get("rut_bloqueado_operacion", True)
                 sin_flor = (st.session_state.get("flor_seleccionada_meson", None) is None)
+                cc_seleccionado = st.session_state.get("cc_activo_meson", "")
+                contratista_seleccionado = st.session_state.get("contratista_activo_meson", "")
                 
-                cc_seleccionado = st.session_state.get("cc_activo_meson", "Seleccione Centro de Costo...")
-                contratista_seleccionado = st.session_state.get("contratista_activo_meson", "Seleccione Contratista...")
-                
-                sin_cc = (cc_seleccionado == "Seleccione Centro de Costo...")
-                sin_contratista = (contratista_seleccionado == "Seleccione Contratista...")
-                
-                bloqueo_final = rut_invalido or sin_flor or sin_cc or sin_contratista
+                bloqueo_final = bloqueo_activo or sin_flor or not cc_seleccionado or not contratista_seleccionado
                 
                 if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
                     partes_contratista = contratista_seleccionado.split(" | ")
+                    tz_chile = zoneinfo.ZoneInfo("America/Santiago")
+                    
                     nuevo_registro = {
                         "CentroCosto": cc_seleccionado,
                         "RutContratista": partes_contratista[0].strip() if len(partes_contratista) > 0 else "",
                         "ContratistaNombre": partes_contratista[1].strip() if len(partes_contratista) > 1 else "",
-                        "RutCosechador": st.session_state.rut_cosechador.replace(".", "").replace("-", "").strip().lower(),
+                        "RutCosechador": st.session_state.rut_cosechador,
                         "CodigoArticulo": int(st.session_state.flor_seleccionada_meson["codigo"]),
                         "DescripcionArticulo": st.session_state.flor_seleccionada_meson["nombre"],
                         "CantidadVaras": int(st.session_state.cantidad_varas_meson),
-                        "FechaRegistro": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
+                        "FechaRegistro": datetime.datetime.now(tz_chile),
+                        "IdExpressUsado": st.session_state.id_express_cosecha
                     }
                     try:
                         db.collection("cosecha_diaria").add(nuevo_registro)
@@ -639,10 +1190,11 @@ with tab_terminal:
             else:
                 st.info("📝 No hay registros cargados hoy en este mesón.")
 
+
 # --- CONTENIDO DE LA PESTAÑA B: PANEL DE AUDITORÍA Y CONTROL (ADMINISTRADOR) ---
 if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
     with tab_auditoria:
-        st.markdown("<h2 style='color:#38bdf8;'>📊 Ventana de Auditoría y Control de Registros</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#38bdf8;'> Bars Ventana de Auditoría y Control de Registros</h2>", unsafe_allow_html=True)
         st.caption("Espacio exclusivo para administradores. Filtre por día, por RUT o combine ambos para auditar Google Firebase.")
         
         col_f_fecha, col_f_cc, col_f_b2b, col_f_rut = st.columns(4)
@@ -679,23 +1231,17 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                 if not ignorar_cc:
                     query = query.where("CentroCosto", "==", filtro_cc)
                 if not ignorar_b2b:
-                    # Filtramos por el nombre de la empresa limpio extraído del string
                     nombre_b2b_limpio = filtro_b2b.split(" | ")[1].strip() if " | " in filtro_b2b else filtro_b2b
                     query = query.where("ContratistaNombre", "==", nombre_b2b_limpio)
                 
                 docs_filtrados = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                 st.session_state.resultado_auditoria_nube = [(doc.id, doc.to_dict()) for doc in docs_filtrados]
-                
                 if not st.session_state.resultado_auditoria_nube:
                     st.info("📋 No se encontraron registros con los criterios seleccionados.")
                 else:
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Error en consulta Firebase: {e}")
-
-        # Guardamos la referencia para el mesón
-        locals()["lista_datos_dia"] = [d for _, d in st.session_state.resultado_auditoria_nube]
-
         if st.session_state.resultado_auditoria_nube:
             st.write(f"📋 Se encontraron {len(st.session_state.resultado_auditoria_nube)} registros:")
             for doc_id, datos in st.session_state.resultado_auditoria_nube:
@@ -728,16 +1274,14 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                                 st.session_state.resultado_auditoria_nube = [] 
                                 st.success("¡Modificado!")
                                 st.rerun()
-                            except Exception as ex:
-                                st.error(f"Error: {ex}")
+                            except Exception as ex: st.error(f"Error: {ex}")
                         if st.button("🗑️ Borrar", key=f"audit_btn_del_{doc_id}", use_container_width=True, type="secondary"):
                             try:
                                 db.collection("cosecha_diaria").document(doc_id).delete()
                                 st.session_state.resultado_auditoria_nube = [] 
                                 st.success("Eliminado.")
                                 st.rerun()
-                            except Exception as ex:
-                                st.error(f"Error: {ex}")
+                            except Exception as ex: st.error(f"Error: {ex}")
 
         # ==================================================================
         # E. PANEL DE CONFIGURACIÓN DEL CATÁLOGO DIRECTO EN LA NUBE
@@ -754,10 +1298,9 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                         try:
                             db.collection("config_centros").add({"nombre": nuevo_cc_nombre, "fecha_creacion": datetime.datetime.now()})
                             st.success(f"✅ Centro de Costo '{nuevo_cc_nombre}' inyectado.")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.warning("El campo no puede estar vacío.")
+                        except Exception as e: st.error(f"Error: {e}")
+                    else: st.warning("El campo no puede estar vacío.")
+                    
         with s_b2b:
             with st.form("form_add_contratista", clear_on_submit=True):
                 new_rut_b2b = st.text_input("RUT Contratista (Con puntos y guión):", placeholder="Ej: 76.888.999-K").strip()
@@ -768,30 +1311,42 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             cadena_kame = f"{new_rut_b2b} | {new_nom_b2b}"
                             db.collection("config_contratistas").add({"formato_kame": cadena_kame, "fecha_creacion": datetime.datetime.now()})
                             st.success(f"✅ Contratista '{cadena_kame}' configurado.")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.warning("Ambos campos son obligatorios.")
-                    
+                        except Exception as e: st.error(f"Error: {e}")
+                    else: st.warning("Ambos campos son obligatorios.")
+
         with s_flores:
             with st.form("form_add_flor_catalogo_libre", clear_on_submit=True):
-                nueva_familia_libre = st.text_input("Escribe la Familia Agrícola / Especie:", placeholder="Ej: Rosas, Peonías").strip()
+                nueva_familia_libre = st.text_input("Escribe la Familia Agrícola / Especie:", placeholder="Ej: Rosas, Peonía").strip()
                 nuevo_cod_flor = st.number_input("Código de Artículo único (Kame ERP):", min_value=1, value=225, step=1, key="admin_add_cod_int")
-                nuevo_nom_flor = st.text_input("Nombre de la Variedad / Color:", placeholder="Ej: Red Naomi, Coral Sunset").strip()
+                nuevo_nom_flor = st.text_input("Nombre de la Variedad / Color comercial:", placeholder="Ej: Ranunculo Romance Rosado", key="admin_add_nom_str").strip()
+                
+                # 🎨 EL CLON DE WORD: Selector de color interactivo táctil para el administrador
+                nuevo_color_hex = st.color_picker(
+                    "🎨 Seleccione el color visual para el círculo de la tarjeta:", 
+                    value="#38bdf8", 
+                    key="admin_add_color_picker"
+                )
+                
                 if st.form_submit_button("Registrar Flor en el Catálogo", use_container_width=True):
-                    if nueva_familia_libre and nuevo_nom_flor and nuevo_cod_flor:
+                    if nuevo_nom_flor and nuevo_cod_flor:
                         try:
+                            # Inyectamos el registro con su color hexadecimal real amarrado
                             db.collection("config_flores").add({
                                 "familia": nueva_familia_libre, 
                                 "codigo": int(nuevo_cod_flor), 
                                 "nombre": nuevo_nom_flor,
+                                "color": str(nuevo_color_hex).lower(),
                                 "fecha_creacion": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
                             })
-                            st.success(f"¡Variedad '{nuevo_nom_flor}' registrada con éxito!")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.warning("Todos los campos son obligatorios.")
+                            st.success(f"¡Variedad '{nuevo_nom_flor}' registrada con éxito con el color {nuevo_color_hex}!")
+                            st.fragment(lambda: None)
+                            st.rerun()
+                        except Exception as e: 
+                            st.error(f"❌ Error al registrar flor en la nube: {e}")
+                    else: 
+                        st.warning("⚠️ El nombre de la variedad es obligatorio.")
+
+
 
         # ==================================================================
         # F. EXPORTACIÓN ERP Y EMISIÓN DE VALES FORMALES EN TICKET CHILE
@@ -801,7 +1356,7 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
         
         tz_local = zoneinfo.ZoneInfo("America/Santiago")
         inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
-        fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=zoneinfo.ZoneInfo("America/Santiago"))
+        fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
         
         col_admin_kame, col_admin_vale = st.columns(2)
         with col_admin_kame:
@@ -809,34 +1364,31 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
             if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
                 try:
                     query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                    if filtro_rut:
+                    if filtro_rut: 
                         query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
                     docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                     lista_datos = [doc.to_dict() for doc in docs]
-                    if not lista_datos:
+                    if not lista_datos: 
                         st.warning("⚠️ No se encontraron registros.")
                     else:
                         df_admin = pd.DataFrame(lista_datos)
                         columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
                         csv_kame = df_admin[columnas_kame].groupby(["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum().to_csv(index=False, sep=";").encode('utf-8')
-                        st.success("Planilla generada.")
+                        st.success("Planilla generada con éxito.")
                         st.download_button(label="📥 DESCARGAR PLANILLA KAME", data=csv_kame, file_name=f"KAME_Cosecha_{filtro_fecha}.csv", mime="text/csv", use_container_width=True)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                except Exception as e: st.error(f"Error: {e}")
                 
         with col_admin_vale:
             st.markdown("### Vale Físico de Cosecha")
             col_v_btn1, col_v_btn2 = st.columns(2)
-            if "html_vale_actual" not in st.session_state:
-                st.session_state.html_vale_actual = ""
-            if "mostrar_trigger_impresion" not in st.session_state:
-                st.session_state.mostrar_trigger_impresion = False
+            if "html_vale_actual" not in st.session_state: st.session_state.html_vale_actual = ""
+            if "mostrar_trigger_impresion" not in st.session_state: st.session_state.mostrar_trigger_impresion = False
             
             with col_v_btn1:
                 if st.button("Generar Vista Previa", key="btn_vale_process", use_container_width=True):
                     try:
                         query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                        if filtro_rut:
+                        if filtro_rut: 
                             query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
                         docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
                         lista_datos = [doc.to_dict() for doc in docs]
@@ -870,13 +1422,12 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
                             </div>"""
                             st.session_state.mostrar_trigger_impresion = False
                             st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                    except Exception as e: st.error(f"Error: {e}")
             with col_v_btn2:
                 if st.button("Imprimir Voucher", key="btn_vale_print_trigger", use_container_width=True, type="primary", disabled=(st.session_state.html_vale_actual == "")):
                     st.session_state.mostrar_trigger_impresion = True
                     st.rerun()
-            if st.session_state.html_vale_actual:
+            if st.session_state.html_vale_actual: 
                 st.html(st.session_state.html_vale_actual)
             if st.session_state.mostrar_trigger_impresion:
                 st.session_state.mostrar_trigger_impresion = False

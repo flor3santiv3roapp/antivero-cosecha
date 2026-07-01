@@ -1,3 +1,6 @@
 streamlit
 pandas
 firebase-admin
+qrcode
+pillow
+opencv-python-headless

@@ -93,6 +93,20 @@ def dibujar_teclado_maqueta_antivero():
     with col_v_ico:
         # Cámara emergente para escanear el QR térmico del balde en vivo
         with st.popover("📷", use_container_width=True):
+        # 🛡️ ESCUDO DE PERMISOS ANDROID OBLIGATORIO PARA CONTENEDORES IFRAME
+            st.html("""
+                <iframe src="about:blank" allow="camera; microphone" style="display:none;"></iframe>
+                <script>
+                    // Forzamos al contenedor web de Streamlit a heredar los permisos de hardware del lente
+                    const iframes = window.parent.document.querySelectorAll('iframe');
+                    iframes.forEach(iframe => {
+                        if (!iframe.hasAttribute('allow')) {
+                            iframe.setAttribute('allow', 'camera; microphone');
+                        }
+                    });
+                </script>
+            """)
+
             cam_balde = st.camera_input("Enfoque el código QR express del balde:", key="cam_reader_balde_term")
             if cam_balde:
                 st.info("Lectura procesada.")
@@ -519,26 +533,56 @@ if not st.session_state.usuario_conectado:
         }
     </style>
     """)
-    st.markdown("<h3 style='text-align: center; color: #38bdf8;'> Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
+    
+    # 🛡️ ESCUDO AVANZADO ANTI-SUGERENCIAS OPERA / CHROME EN HOT-RELOAD
+    st.html("""
+        <style>
+            /* Prohibimos la inyección visual de globos de contraseñas de Opera */
+            input::-webkit-credentials-auto-fill-button,
+            input::-webkit-contacts-auto-fill-button {
+                visibility: hidden !important;
+                pointer-events: none !important;
+                position: absolute !important;
+            }
+            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+                -webkit-text-fill-color: #f8fafc !important;
+                transition: background-color 5000s ease-in-out 0s !important;
+            }
+        </style>
+        <script>
+            // Escudo Javascript en microsegundos para anular el autocompletado rígido de Opera
+            setTimeout(function() {
+                const inputs = window.parent.document.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.setAttribute('autocomplete', 'new-password');
+                    input.setAttribute('id', 'clear_nocache_' + Math.random().toString(36).substring(7));
+                    input.setAttribute('autocorrect', 'off');
+                    input.setAttribute('spellcheck', 'false');
+                });
+            }, 100);
+        </script>
+    """)
+
     with st.container(border=True):
         st.markdown("### Iniciar Sesión")
-        input_usuario = st.text_input("INGRESA TU RUT O CORREO ADMINISTRADOR:", placeholder="Ej: admin@antivero.cl", key="auth_login_user").strip().lower()
-        input_clave = st.text_input("CONTRASEÑA DE ACCESO:", type="password", placeholder="••••••••", key="auth_login_password")
         
-        st.html("""
-        <script>
-        setTimeout(function() {
-            const inputs = window.parent.document.querySelectorAll('input');
-            inputs.forEach(input => {
-                input.setAttribute('autocomplete', 'off');
-                input.setAttribute('id', 'nocache_' + Math.random().toString(36).substring(7));
-                input.removeAttribute('name');
-            });
-        }, 250);
-        </script>
-        """)
+        # 🔑 LLAVES CAMBIADAS A IDENTIFICADORES NEUTROS LIBRES DE RASTREO DE CREDENCIALES
+        input_usuario = st.text_input(
+            "INGRESA TU RUT O CORREO ADMINISTRADOR:", 
+            placeholder="Ej: admin@antivero.cl", 
+            key="campo_libre_terminal_user"
+        ).strip().lower()
         
-        if st.button(" Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
+        input_clave = st.text_input(
+            "CONTRASEÑA DE ACCESO:", 
+            type="password", 
+            placeholder="••••••••", 
+            key="campo_libre_terminal_pass"
+        )
+        
+        st.write("")
+        if st.button("🔑 Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
             if input_usuario and input_clave:
                 try:
                     user_ref = db.collection("usuarios").document(input_usuario).get()
@@ -548,18 +592,44 @@ if not st.session_state.usuario_conectado:
                             st.session_state.usuario_conectado = True
                             st.session_state.rol_usuario = datos_user.get("rol", "operario")
                             st.session_state.id_usuario_activo = input_usuario
-                            st.success(f" Acceso concedido como: {st.session_state.rol_usuario.upper()}")
-                            st.fragment(lambda: None)
+                            st.success(f"✅ Acceso concedido como: {st.session_state.rol_usuario.upper()}")
                             st.rerun()
                         else:
-                            st.error(" La contraseña ingresada es incorrecta.")
+                            st.error("❌ La contraseña ingresada es incorrecta.")
                     else:
-                        st.error(" El usuario ingresado no está registrado en el sistema agrícola.")
+                        st.error("❌ El usuario ingresado no está registrado en el sistema agrícola.")
                 except Exception as e:
-                    st.error(f" Error de conexión con el servidor de Google: {e}")
+                    st.error(f"❌ Error de conexión con el servidor de Google: {e}")
             else:
-                st.warning(" Por favor, complete ambos campos.")
+                st.warning("⚠️ Por favor, complete ambos campos.")
+                
+        # ==============================================================
+        # 🚨 RESTAURACIÓN MÁSTER: RECUPERACIÓN DE CLAVES EXTRAS DE TERRENO 🚨
+        # ==============================================================
+        st.write("---")
+        with st.expander("❓ ¿Olvidó su Contraseña o RUT Inválido?", expanded=False):
+            st.caption("Solicite un cambio express. El administrador aprobará su nueva clave desde el Panel de Auditoría.")
+            with st.form("form_recuperacion_express_clave", clear_on_submit=True):
+                rut_olvido = st.text_input("Ingrese su RUT para Alerta (Sin puntos ni guión):", placeholder="Ej: 174031711", key="recup_rut_input").strip().lower()
+                if st.form_submit_button(" Enviar Alerta Express de Cambio", use_container_width=True):
+                    if rut_olvido and len(rut_olvido) >= 7:
+                        try:
+                            # Registramos la alerta en la colección que lee la Pestaña B del Admin
+                            db.collection("solicitudes_clave").document(rut_olvido).set({
+                                "usuario": rut_olvido,
+                                "estado": "pendiente",
+                                "fecha_solicitud": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
+                            })
+                            st.success(f" Alerta enviada con éxito para el RUT {rut_olvido}. Dé aviso al supervisor de turno.")
+                        except Exception as e_sol:
+                            st.error(f"Error al conectar la alerta: {e_sol}")
+                    else:
+                        st.warning(" Ingrese un RUT válido de campo.")
+
+    #  EL CANDADO MÁSTER DE ACCESO: Detiene la ejecución absoluta para que NO se dibuje la terminal abajo si no se ha logueado
     st.stop()
+
+
 
 # ==================================================================
 # 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
@@ -783,6 +853,19 @@ with tab_credenciales:
     with col_enrol_der:
         st.markdown("### 📷 Escaneo Automático QR de Cédula (Mesón)")
         st.caption("Enfoque el código QR del reverso del carnet chileno. El sistema extraerá el RUT automáticamente:")
+        # 🛡️ ESCUDO DE PERMISOS ANDROID OBLIGATORIO PARA CONTENEDORES IFRAME
+        st.html("""
+            <iframe src="about:blank" allow="camera; microphone" style="display:none;"></iframe>
+            <script>
+                // Forzamos al contenedor web de Streamlit a heredar los permisos de hardware del lente
+                const iframes = window.parent.document.querySelectorAll('iframe');
+                iframes.forEach(iframe => {
+                    if (!iframe.hasAttribute('allow')) {
+                        iframe.setAttribute('allow', 'camera; microphone');
+                    }
+                });
+            </script>
+        """)
         
         foto_carnet = st.camera_input("Apunte al QR del Registro Civil:", key="scanner_camera_cedula_cl")
         

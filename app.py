@@ -89,31 +89,104 @@ def dibujar_teclado_maqueta_antivero():
     st.markdown('<div class="cuadro-teclado-oficial">', unsafe_allow_html=True)
     
     # Cabecera interactiva con Visor e ícono de cámara QR de tu fotografía
-    col_v_txt, col_v_ico = st.columns([3, 1])
+    col_v_txt, col_v_ico = st.columns(2)
     with col_v_txt:
         st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:50px; margin-bottom:0; background-color:#0f172a;">#{id_crudo if id_crudo else "---"}</div>', unsafe_allow_html=True)
     with col_v_ico:
-        # Cámara emergente para escanear el QR térmico del balde en vivo
-        with st.popover("📷", use_container_width=True):
-        # 🛡️ ESCUDO DE PERMISOS ANDROID OBLIGATORIO PARA CONTENEDORES IFRAME
-            st.html("""
-                <iframe src="about:blank" allow="camera; microphone" style="display:none;"></iframe>
-                <script>
-                    // Forzamos al contenedor web de Streamlit a heredar los permisos de hardware del lente
-                    const iframes = window.parent.document.querySelectorAll('iframe');
-                    iframes.forEach(iframe => {
-                        if (!iframe.hasAttribute('allow')) {
-                            iframe.setAttribute('allow', 'camera; microphone');
+        # 🚀 CÁMARA POP-OVER CON MOTOR WEBRTC Y ENFOQUE CONTINUO FORZADO 🚀
+        with st.popover("📷 SCAN QR", use_container_width=True):
+            import streamlit.components.v1 as components
+            
+            components.html("""
+            <div style="background-color: #0f172a; padding: 10px; border-radius: 8px; font-family: sans-serif; color: white; text-align: center;">
+                <video id="video-stream-terminal" style="width: 100%; max-width: 300px; height: auto; border-radius: 6px; background-color: #000;" autoplay playsinline></video>
+                <div id="status-scan-terminal" style="margin-top: 8px; font-weight: bold; color: #38bdf8; font-size: 14px;">📷 Acerque el QR del Balde</div>
+            </div>
+            
+            <script src="https://jsdelivr.net"></script>
+            <script>
+                const video = document.getElementById('video-stream-terminal');
+                const statusDiv = document.getElementById('status-scan-terminal');
+                let trackActivo = null;
+                
+                // Forzamos resolución media para que el procesador de la tablet enfoque el macro al instante
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment", 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 } 
+                    } 
+                })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.setAttribute("playsinline", true);
+                    video.play();
+                    
+                    // 🧠 SISTEMA ANTI-DESENFOQUE DE HARDWARE
+                    trackActivo = stream.getVideoTracks()[0];
+                    const capabilities = trackActivo.getCapabilities ? trackActivo.getCapabilities() : {};
+                    
+                    // Si el dispositivo soporta enfoque continuo o macro, lo obligamos a fijarlo por código
+                    let constraints = {};
+                    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                        constraints.focusMode = 'continuous';
+                    }
+                    if (Object.keys(constraints).length > 0) {
+                        trackActivo.applyConstraints({ advanced: [constraints] }).catch(e => console.log(e));
+                    }
+                    
+                    requestAnimationFrame(tick);
+                })
+                .catch(function(err) {
+                    statusDiv.innerHTML = "🛑 Sin acceso al lente.";
+                });
+
+                function tick() {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                        
+                        if (code && code.data) {
+                            const idDetectado = code.data.trim();
+                            // Validamos que el QR del balde sea un número express limpio (100-200)
+                            if (!isNaN(idDetectado) && parseInt(idDetectado) >= 100 && parseInt(idDetectado) <= 200) {
+                                statusDiv.innerHTML = "✅ Balde #" + idDetectado + " Leído";
+                                statusDiv.style.color = "#10b981";
+                                
+                                // Mandamos el ID al instante a la memoria base de Streamlit
+                                window.parent.postMessage({ type: "ANTIVERO_QR_TERMINAL", id_express: idDetectado }, "*");
+                            }
+                        }
+                    }
+                    requestAnimationFrame(tick);
+                }
+            </script>
+            """, height=310)
+
+        # 🚀 RECEPTOR INTERNO EN PYTHON: Carga el número en la caja express y libera el mesón
+        st.html("""
+        <script>
+            window.addEventListener('message', function(e) {
+                if (e.data && e.data.type === 'ANTIVERO_QR_TERMINAL') {
+                    const inputs = window.parent.document.querySelectorAll('input');
+                    inputs.forEach(input => {
+                        // Inyectamos el ID express directo en la memoria caché de la terminal
+                        if (input.getAttribute('key') === 'input_recup_manual' || (input.getAttribute('aria-label') && input.getAttribute('aria-label').includes('ID'))) {
+                            input.value = e.data.id_express;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
                         }
                     });
-                </script>
-            """)
+                }
+            });
+        </script>
+        """)
 
-            cam_balde = st.camera_input("Enfoque el código QR express del balde:", key="cam_reader_balde_term")
-            if cam_balde:
-                st.info("Lectura procesada.")
-                # Lógica de puente: si la cámara lee un ID válido, lo asigna directo
-                st.session_state.id_express_cosecha = st.text_input("Confirmar ID detectado:", key="bridge_id_input")
 
     st.write("")
     
@@ -876,33 +949,45 @@ with tab_credenciales:
         st.markdown("### 📷 Escáner QR de Cédula de Identidad (Mesón)")
         st.caption("Enfoque el código QR del carnet (reverso). El sistema procesará el RUT de forma automática:")
         
-        # 🚀 INYECCIÓN HTML5 WEBRTC DIRECTA: Inmune a bloqueos de iFrame y con decodificador jsQR
+        # 🚀 INYECCIÓN HTML5 WEBRTC DIRECTA CON AUTOENFOQUE CONTINUO CRÍTICO 🚀
         import streamlit.components.v1 as components
-        
         components.html("""
         <div style="background-color: #1e293b; padding: 12px; border-radius: 10px; border: 1px solid #334155; font-family: sans-serif; color: #f8fafc; text-align: center;">
-            <video id="video-stream-antivero" style="width: 100%; max-width: 340px; height: auto; border-radius: 8px; background-color: #0f172a;" autoplay playsinline></video>
+            <p style="margin-top:0; font-size:14px; color:#94a3b8;">Lector QR Directo por Cámara (Enfoque Continuo)</p>
+            <video id="video-stream-matinal" style="width: 100%; max-width: 320px; height: auto; border-radius: 8px; background:#0f172a;" autoplay playsinline></video>
             <div id="status-lector-qr" style="margin-top: 10px; font-weight: bold; color: #38bdf8; font-size: 15px;">📷 Buscando Código QR...</div>
         </div>
-        
-        <!-- Cargamos el motor matemático jsQR de alta densidad desde servidor seguro -->
         <script src="https://jsdelivr.net"></script>
         <script>
-            const video = document.getElementById('video-stream-antivero');
+            const video = document.getElementById('video-stream-matinal');
             const statusDiv = document.getElementById('status-lector-qr');
+            let trackActivo = null;
             
-            // Solicitamos acceso directo a la cámara trasera con alta resolución
+            // 🧠 RESOLUCIÓN OPTIMIZADA: 640x480 reduce la distorsión y facilita el enfoque macro en Android
             navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
             })
             .then(function(stream) {
                 video.srcObject = stream;
-                video.setAttribute("playsinline", true); // Requisito mandatorio para iOS/Safari
+                video.setAttribute("playsinline", true);
                 video.play();
+                
+                // 🧠 CONSTREÑIMIENTO DE ENFOQUE CONTINUO NATIVO
+                trackActivo = stream.getVideoTracks()[0];
+                setTimeout(() => {
+                    const capabilities = trackActivo.getCapabilities ? trackActivo.getCapabilities() : {};
+                    let constraints = {};
+                    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                        constraints.focusMode = 'continuous';
+                    }
+                    if (Object.keys(constraints).length > 0) {
+                        trackActivo.applyConstraints({ advanced: [constraints] }).catch(e => console.log(e));
+                    }
+                }, 500); // Pequeño retraso para dar tiempo a la inicialización del sensor
+                
                 requestAnimationFrame(tick);
-            })
-            .catch(function(err) {
-                statusDiv.innerHTML = "🛑 Error de hardware: Asegúrese de dar permisos de cámara en los tres puntos de Chrome.";
+            }).catch(function(err) {
+                statusDiv.innerHTML = "🛑 Permiso de cámara denegado o hardware ocupado.";
                 statusDiv.style.color = "#ef4444";
             });
 
@@ -913,38 +998,24 @@ with tab_credenciales:
                     canvas.height = video.videoHeight;
                     const ctx = canvas.getContext("2d");
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
                     
-                    // Ejecutamos el escaneo de la matriz de micropuntos del carnet chileno
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                        inversionAttempts: "dontInvert"
-                    });
-                    
-                    if (code) {
-                        // El QR chileno contiene una URL oficial (ej: https://registrocivil.cl)
-                        if (code.data.includes("RUN=")) {
-                            statusDiv.innerHTML = "🎯 ¡Cédula Detectada con Éxito!";
-                            statusDiv.style.color = "#10b981";
-                            
-                            // Extraemos el parámetro RUN de la cadena de texto
-                            const params = new URLSearchParams(code.data.split('?')[1]);
-                            const rutExtraido = params.get('RUN');
-                            
-                            if (rutExtraido) {
-                                // Enviamos el RUT de regreso a la memoria interna de Streamlit de forma inmediata
-                                window.parent.postMessage({
-                                    type: "ANTIVERO_QR_CARNET",
-                                    rut: rutExtraido.replace("-", "").trim().toLowerCase()
-                                }, "*");
-                            }
+                    if (code && code.data.includes("RUN=")) {
+                        statusDiv.innerHTML = "🎯 ¡Cédula Detectada con Éxito!";
+                        statusDiv.style.color = "#10b981";
+                        const urlParams = new URLSearchParams(code.data.split('?'));
+                        const r = urlParams.get('RUN');
+                        if (r) {
+                            window.parent.postMessage({ type: 'QR_CARNET_DETECTADO', rut: r.replace("-", "").trim().toLowerCase() }, '*');
                         }
                     }
                 }
                 requestAnimationFrame(tick);
             }
         </script>
-        """, height=350)
+        """, height=340)
+
 
         # 🚀 OÍDOR DE EVENTOS EN PYTHON: Atrapa el RUT enviado por JavaScript y actualiza la app
         st.html("""

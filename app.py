@@ -9,8 +9,10 @@ import qrcode
 import io
 
 # ==================================================================
-# 1. CONEXIÓN SECRETA Y SEGURA CON GOOGLE FIREBASE CLOUD (HÍBRIDA)
+# 1. CONEXIÓN CON FIREBASE Y CONFIGURACIÓN MAESTRA DE PÁGINA
 # ==================================================================
+st.set_page_config(layout="wide", page_title="Flores Antivero Cosecha")
+
 if not firebase_admin._apps:
     try:
         if "text_key" in st.secrets:
@@ -25,10 +27,387 @@ if not firebase_admin._apps:
             cred = credentials.Certificate("llave_firebase.json")
             firebase_admin.initialize_app(cred)
         except Exception as e_local:
-            st.error(f"❌ Error crítico al cargar credenciales de Firebase: {e_local}")
+            st.error(f"Error crítico: {e_local}")
 
 db = firestore.client()
 
+# ==================================================================
+# 2. INYECCIÓN CSS: ALTO CONTRASTE PARA PESTAÑAS (TABS) Y BOTONES RESONSIVOS
+# ==================================================================
+st.html("""
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --panel-bg: #1e293b;
+        --text-light: #ffffff;
+        --text-muted: #cbd5e1;
+        --border-color: #475569;
+        --accent-blue: #38bdf8;
+    }
+    .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
+    
+    /* MEJORA CRÍTICA: Contraste de Pestañas (Tabs) visibles bajo el sol en la Tablet */
+    button[data-baseweb="tab"] {
+        background-color: #1e293b !important;
+        color: #94a3b8 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 6px 6px 0 0 !important;
+        padding: 10px 20px !important;
+        font-weight: bold !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #38bdf8 !important;
+        color: #0f172a !important;
+        border-color: #38bdf8 !important;
+    }
+    
+    /* Grilla de Flores adaptable y responsiva sin pérdidas */
+    .zona-grilla-flores {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+        gap: 12px !important;
+        width: 100% !important;
+    }
+    .seccion-familia-bloque {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 15px;
+        width: 100%;
+    }
+    .titulo-familia-txt {
+        font-size: 16px;
+        font-weight: bold;
+        color: #38bdf8;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #334155;
+        padding-bottom: 4px;
+    }
+    
+    /* Bloqueador visual de globos flotantes de contraseñas */
+    input::-webkit-credentials-auto-fill-button,
+    input::-webkit-contacts-auto-fill-button {
+        visibility: hidden !important;
+        pointer-events: none !important;
+        position: absolute !important;
+    }
+</style>
+""")
+
+# ==================================================================
+# 3. PORTAL DE ACCESO CON ENMASCARAMIENTO TOTAL ANTI-CONTRASURAS
+# ==================================================================
+if "usuario_conectado" not in st.session_state:
+    st.session_state.usuario_conectado = False
+
+if not st.session_state.usuario_conectado:
+    # Inyección de estilos extremos para evitar autocompletado e inyecciones de Opera/Chrome
+    st.html("""
+    <style>
+        /* Desactiva por completo los iconos flotantes de llaveros de contraseñas */
+        input::-webkit-credentials-auto-fill-button,
+        input::-webkit-contacts-auto-fill-button,
+        div[data-testid="stTextInput"] iframe, 
+        .password-icon {
+            visibility: hidden !important;
+            pointer-events: none !important;
+            display: none !important;
+        }
+        /* Forzamos tipografía de círculos si el navegador intenta renderizar texto plano */
+        .mascara-pass input {
+            -webkit-text-security: disc !important;
+            text-security: disc !important;
+        }
+    </style>
+    <script>
+        // Mutación forzada cada 300ms sobre el DOM real del dispositivo móvil/tablet
+        setInterval(function() {
+            const inputs = window.parent.document.querySelectorAll('input');
+            inputs.forEach(input => {
+                // Eliminamos cualquier rastro que active el gestor de contraseñas
+                input.removeAttribute('name');
+                input.removeAttribute('id');
+                if (input.getAttribute('type') === 'password') {
+                    // Si el navegador forzó un tipo password, lo degradamos a texto enmascarado por CSS
+                    input.setAttribute('type', 'text');
+                }
+                input.setAttribute('autocomplete', 'new-password-off-' + Math.random().toString(36).substring(5));
+                input.setAttribute('autocorrect', 'off');
+                input.setAttribute('autocapitalize', 'off');
+                input.setAttribute('spellcheck', 'false');
+            });
+        }, 300);
+    </script>
+    """)
+
+    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>Acceso Cosecha Flores</h3>", unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        st.markdown("### Iniciar Sesión")
+        
+        input_usuario = st.text_input(
+            "INGRESA TU RUT:", 
+            key="campo_neutro_user",
+            placeholder="Ej: 12345678k"
+        ).strip().lower()
+        
+        # Usamos text_input común (tipo texto plano para el navegador) con clase de enmascaramiento CSS
+        st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
+        input_clave = st.text_input(
+            "CONTRASEÑA DE ACCESO:", 
+            key="campo_neutro_pass",
+            placeholder="••••••••"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.write("")
+        if st.button("Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
+            if input_usuario and input_clave:
+                try:
+                    user_ref = db.collection("usuarios").document(input_usuario).get()
+                    if user_ref.exists and user_ref.to_dict().get("password") == input_clave:
+                        st.session_state.usuario_conectado = True
+                        st.session_state.rol_usuario = user_ref.to_dict().get("rol", "operario")
+                        st.session_state.id_usuario_activo = input_usuario
+                        st.rerun()
+                    else:
+                        st.error("La contraseña o el usuario ingresado son incorrectos.")
+                except Exception as e:
+                    st.error(f"Error de conexión con el servidor de Google: {e}")
+            else:
+                st.warning("Por favor, complete ambos campos.")
+                
+    # ==============================================================
+    # RESTAURACIÓN MÁSTER: RECUPERACIÓN DE CLAVES EXTRAS DE TERRENO 
+    # ==============================================================
+    st.write("---")
+    with st.expander("¿Olvidó su Contraseña o RUT Inválido?", expanded=False):
+        st.caption("Solicite un cambio express. El administrador aprobará su nueva clave desde el Panel de Auditoría.")
+        with st.form("form_recuperacion_express_clave", clear_on_submit=True):
+            rut_olvido = st.text_input(
+                "Ingrese su RUT para Alerta (Sin puntos ni guñón):", 
+                placeholder="Ej: 174031711", 
+                key="recup_rut_input"
+            ).strip().lower()
+            
+            if st.form_submit_button("Enviar Alerta Express de Cambio", use_container_width=True):
+                if rut_olvido and len(rut_olvido) >= 7:
+                    try:
+                        db.collection("solicitudes_clave").document(rut_olvido).set({
+                            "usuario": rut_olvido,
+                            "estado": "pendiente",
+                            "fecha_solicitud": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
+                        })
+                        st.success(f"Alerta enviada con éxito para el RUT {rut_olvido}. Dé aviso al supervisor de turno.")
+                    except Exception as e_sol:
+                        st.error(f"Error al conectar la alerta: {e_sol}")
+                else:
+                    st.warning("Ingrese un RUT válido de campo.")
+    st.stop()
+# ==================================================================
+# 4. TECLADO Y LECTOR DE FICHA EXPRESS (ARREGLO DE CÁMARA TABLET)
+# ==================================================================
+def dibujar_teclado_maqueta_antivero():
+    st.html("""
+    <style>
+        .cuadro-teclado-oficial { max-width: 350px; margin: 10px auto; box-sizing: border-box; }
+        .cuadro-teclado-oficial [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
+        .cuadro-teclado-oficial div[data-testid="column"] { margin-bottom: 0 !important; }
+        .cuadro-teclado-oficial button {
+            background-color: #1e293b !important; color: #ffffff !important;
+            border: 1px solid #475569 !important; border-radius: 8px !important;
+            font-size: 22px !important; font-weight: bold !important; height: 56px !important;
+        }
+        .cuadro-teclado-oficial button:active { background-color: #38bdf8 !important; color: #0f172a !important; }
+        .cuadro-teclado-oficial .barra-roja-clear button { background-color: #ef4444 !important; border: 1px solid #dc2626 !important; height: 52px !important; }
+        .cuadro-teclado-oficial .barra-roja-clear button p { color: #ffffff !important; font-weight: bold !important; font-size: 18px !important; }
+        .cuadro-teclado-oficial .barra-azul-enter button { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; height: 54px !important; }
+        .cuadro-teclado-oficial .barra-azul-enter button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
+    </style>
+    """)
+    st.subheader("📌 Lector de Ficha Express")
+    st.caption("Digite el ID de 3 dígitos (100-200) o abra la cámara QR:")
+    
+    if "id_express_cosecha" not in st.session_state: 
+        st.session_state.id_express_cosecha = ""
+    id_crudo = st.session_state.id_express_cosecha
+    
+    tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+    fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+    
+    ficha_es_valida = False
+    if id_crudo.isdigit() and 100 <= int(id_crudo) <= 200:
+        try:
+            doc_ficha = db.collection("credenciales_activas_dia").document(id_crudo).get()
+            if doc_ficha.exists and doc_ficha.to_dict().get("FechaFiltro") == fecha_hoy_str:
+                ficha_es_valida = True
+                datos_f = doc_ficha.to_dict()
+                st.session_state.rut_cosechador = datos_f.get("RutCosechador", "")
+                st.session_state.cc_activo_meson = datos_f.get("CentroCosto", "")
+                st.session_state.contratista_activo_meson = datos_f.get("Contratista", "")
+        except Exception:
+            ficha_es_valida = False
+
+    st.markdown('<div class="cuadro-teclado-oficial">', unsafe_allow_html=True)
+    col_v_txt, col_v_ico = st.columns([3, 1])
+    with col_v_txt:
+        st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:50px; margin-bottom:0; background-color:#0f172a; color:#38bdf8;">#{id_crudo if id_crudo else "---"}</div>', unsafe_allow_html=True)
+    with col_v_ico:
+        with st.popover("📷", use_container_width=True):
+            # ARREGLO MAESTRO DE HARDWARE: Acceso directo vía WebRTC rompiendo el bloqueo Iframe
+            st.components.v1.html("""
+            <div style="background-color:#1e293b; padding:10px; border-radius:8px; text-align:center; font-family:sans-serif; color:white;">
+                <video id="video-balde" style="width:100%; max-width:280px; border-radius:6px; background:#0f172a;" autoplay playsinline></video>
+                <div id="status-balde" style="margin-top:8px; font-size:12px; color:#38bdf8;">Iniciando cámara trasera...</div>
+            </div>
+            <script>
+                const video = document.getElementById('video-balde');
+                const status = document.getElementById('status-balde');
+                // Solicitamos explícitamente el lente del entorno (cámara trasera en celulares/tablets)
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    status.innerText = " Buscando código QR del balde...";
+                }).catch(function(err) {
+                    status.innerText = "Error: Active los permisos de hardware HTTPS en su dispositivo.";
+                });
+            </script>
+            """, height=260)
+            st.session_state.id_express_cosecha = st.text_input("ID Detectado:", key="bridge_id_input", value=st.session_state.id_express_cosecha)
+
+    # Construcción limpia de la matriz numérica
+    filas_num = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
+    for fila in filas_num:
+        cols = st.columns(3)
+        for idx, digito in enumerate(fila):
+            with cols[idx]:
+                if st.button(digito, key=f"btn_term_fijo_{digito}", use_container_width=True):
+                    if len(st.session_state.id_express_cosecha) < 3:
+                        st.session_state.id_express_cosecha += digito
+                        st.rerun()
+                        
+    col_inf1, col_inf2 = st.columns(2)
+    with col_inf1:
+        if st.button("0", key="btn_term_0_fijo", use_container_width=True):
+            if len(st.session_state.id_express_cosecha) < 3: st.session_state.id_express_cosecha += "0"; st.rerun()
+    with col_inf2:
+        if st.button("←", key="btn_term_RETRO_1_fijo", use_container_width=True):
+            st.session_state.id_express_cosecha = st.session_state.id_express_cosecha[:-1]; st.rerun()
+
+    st.write("")
+    st.markdown('<div class="barra-roja-clear">', unsafe_allow_html=True)
+    if st.button("borrar", key="btn_term_CLEAR_M_fijo", use_container_width=True):
+        st.session_state.id_express_cosecha = ""; st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="barra-azul-enter">', unsafe_allow_html=True)
+    if st.button("enter", key="btn_term_ENTER_M_fijo", use_container_width=True):
+        if ficha_es_valida: st.success("Ficha Cargada")
+        else: st.error("Ficha Vacía o Inválida")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.session_state.rut_bloqueado_operacion = not ficha_es_valida
+# ==================================================================
+# 5. SINCRONIZACIÓN AUTOMÁTICA EN VIVO DEL CATÁLOGO DESDE FIREBASE
+# ==================================================================
+# 1. Lectura de Centros de Costo con respaldo estático original
+try:
+    docs_cc = db.collection("config_centros").order_by("nombre").stream()
+    lista_cc_dinamica = [doc.to_dict().get("nombre") for doc in docs_cc if doc.to_dict().get("nombre")]
+    if not lista_cc_dinamica:
+        lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
+except Exception:
+    lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
+
+# 2. Lectura de Contratistas con respaldo estático original
+try:
+    docs_b2b = db.collection("config_contratistas").order_by("fecha_creacion", direction=firestore.Query.DESCENDING).stream()
+    lista_b2b_dinamica = [doc.to_dict().get("formato_kame") for doc in docs_b2b if doc.to_dict().get("formato_kame")]
+    if not lista_b2b_dinamica:
+        lista_b2b_dinamica = [
+            "76.543.210-K | Servicios Agrícolas del Maule",
+            "77.123.456-7 | Agrícola San Fernando Limitada",
+            "76.999.888-2 | Mano de Obra Terreno SpA"
+        ]
+except Exception:
+    lista_b2b_dinamica = [
+        "76.543.210-K | Servicios Agrícolas del Maule",
+        "77.123.456-7 | Agrícola San Fernando Limitada",
+        "76.999.888-2 | Mano de Obra Terreno SpA"
+    ]
+
+# 3. Lectura de Flores y Variedades del Catálogo (Clasificación Botánica Estricta)
+diccionario_flores_dinamico = {
+    "Ranunculo Romance": [], 
+    "Ranunculo Elegance": [], 
+    "Peonía": [], 
+    "Delphinium": []
+}
+try:
+    docs_flores = db.collection("config_flores").stream()
+    for doc in docs_flores:
+        dat = doc.to_dict()
+        fam_cruda = str(dat.get("familia", "")).strip().lower()
+        cod_f = dat.get("codigo")
+        nom_f = dat.get("nombre", "Sin Nombre")
+        color_f = dat.get("color", "#94a3b8")
+        
+        if cod_f is not None and nom_f != "Sin Nombre":
+            objeto_flor = {"codigo": int(cod_f), "nombre": str(nom_f), "color": str(color_f)}
+            
+            if "romance" in fam_cruda:
+                diccionario_flores_dinamico["Ranunculo Romance"].append(objeto_flor)
+            elif "elegance" in fam_cruda:
+                diccionario_flores_dinamico["Ranunculo Elegance"].append(objeto_flor)
+            elif "peon" in fam_cruda:
+                diccionario_flores_dinamico["Peonía"].append(objeto_flor)
+            elif "delphi" in fam_cruda:
+                diccionario_flores_dinamico["Delphinium"].append(objeto_flor)
+except Exception as e_cat_flores:
+    st.caption(f"Alerta catálogo: {e_cat_flores}")
+
+# Descarga automática de registros bajo huso horario estricto chileno
+lista_datos_dia = []
+try:
+    zona_chile = zoneinfo.ZoneInfo("America/Santiago")
+    inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zona_chile)
+    fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zona_chile)
+    docs_hoy = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_hoy).where("FechaRegistro", "<=", fin_hoy).stream()
+    lista_datos_dia = [doc.to_dict() for doc in docs_hoy]
+    st.session_state.lista_datos_dia_cache = lista_datos_dia
+except Exception as e_consulta_automatica:
+    st.caption(f"Nota de sincronización: {e_consulta_automatica}")
+
+# ==================================================================
+# 6. ENRUTADOR DE PESTAÑAS AGRÍCOLAS REFORZADO (ALTO CONTRASTE VISUAL)
+# ==================================================================
+if "rol_usuario" not in st.session_state:
+    st.session_state.rol_usuario = "operario"
+
+if st.session_state.rol_usuario == "admin":
+    tab_terminal, tab_credenciales, tab_auditoria = st.tabs([
+        "🚜 Terminal de Cosecha", 
+        "🪪 Credenciales del Día", 
+        "⚙️ Panel de Control y Auditoría"
+    ])
+else:
+    tab_terminal, tab_credenciales = st.tabs([
+        "🚜 Terminal de Cosecha", 
+        "🪪 Credenciales del Día"
+    ])
+    tab_auditoria = None
+
+# Inicializamos la barra lateral informativa de manera compacta para resguardar espacio
+with st.sidebar:
+    st.markdown(f"**Usuario:** `{st.session_state.get('id_usuario_activo', 'INVITADO').upper()}`")
+    st.markdown(f"**Rol:** `{st.session_state.rol_usuario.upper()}`")
+    st.write("---")
+    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
+        st.session_state.usuario_conectado = False
+        st.session_state.rol_usuario = "operario"
+        st.session_state.id_usuario_activo = ""
+        st.rerun()
 # ==================================================================
 # 4.B TERMINAL EXPRESS CON LECTOR QR ASOCIADO (DISEÑO EXACTO FOTO)
 # ==================================================================
@@ -187,8 +566,6 @@ def dibujar_teclado_enrolamiento_antivero():
             .cuadro-teclado-enrol .barra-azul-enter-enrol button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
         </style>
     """)
-    
-    st.subheader("📍 Identificación de Campo (Matinal)")
     
     st.subheader("📍 Identificación de Campo (Matinal)")
     
@@ -357,492 +734,9 @@ def dibujar_teclado_enrolamiento_antivero():
                         }, 150);
                     </script>
                 """)
-
-
 # ==================================================================
-# 2. CONFIGURACIÓN VISUAL OPTIMIZADA PARA GIROS Y DISPOSITIVOS
+# 7. CONTENIDO DE LA PESTAÑA CENTRAL: REGISTRO DE CREDENCIALES (ORIGINAL)
 # ==================================================================
-st.set_page_config(layout="wide", page_title="Flores Antivero Cosecha")
-st.html("""
-    <style>
-        :root {
-            --bg-dark: #0f172a;
-            --panel-bg: #1e293b;
-            --text-light: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-            --accent-blue: #38bdf8;
-        }
-        .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
-        .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
-        .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
-        .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
-        .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
-        div[data-testid="stButton"] button { 
-            background-color: var(--panel-bg) !important; 
-            color: var(--text-light) !important; 
-            border: 1px solid var(--border-color) !important; 
-            font-weight: bold !important; 
-            font-size: 15px !important; 
-        }
-        div[data-testid="stButton"] button p { 
-            color: var(--text-light) !important; 
-        }
-        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { 
-            background-color: var(--accent-blue) !important; 
-            color: var(--bg-dark) !important; 
-            border-color: var(--accent-blue) !important; 
-        }
-        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { 
-            color: var(--bg-dark) !important; 
-        }
-        @media (max-width: 768px) {
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] { 
-                flex-direction: column !important; 
-            }
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
-                width: 100% !important; 
-                margin-left: 0 !important; 
-                margin-bottom: 15px !important; 
-            }
-            .antivero-header h1 { 
-                font-size: 18px; 
-            }
-        }
-        div[data-testid="stElementToolbar"] { display: none !important; }
-        div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
-    </style>
-""")
-
-# ==================================================================
-# CONFIGURACIÓN DEL ENCABEZADO CON FECHA Y HORA OFICIAL DE CHILE
-# ==================================================================
-zona_chile = zoneinfo.ZoneInfo("America/Santiago")
-ahora_chile = datetime.datetime.now(zona_chile)
-hora_actual = ahora_chile.strftime("%H:%M")
-fecha_actual = ahora_chile.strftime("%d/%m/%Y")
-
-st.html(f"""
-<div class="antivero-header">
-    <div>
-        <h1>🚜 Flores Antivero — Terminal de Cosecha v2.0</h1>
-        <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Fecha de Campo: {fecha_actual}</div>
-    </div>
-    <div style="font-weight: bold; font-size: 24px; color: #38bdf8;">{hora_actual}</div>
-</div>
-""")
-
-# Inicialización segura de estados globales en Session State
-if "usuario_conectado" not in st.session_state:
-    st.session_state.usuario_conectado = False
-if "rol_usuario" not in st.session_state:
-    st.session_state.rol_usuario = "operario"
-if "rut_cosechador" not in st.session_state:
-    st.session_state.rut_cosechador = ""
-if "id_usuario_activo" not in st.session_state:
-    st.session_state.id_usuario_activo = ""
-
-# ==================================================================
-# SINCRONIZACIÓN AUTOMÁTICA EN VIVO DEL CATÁLOGO DESDE FIREBASE
-# ==================================================================
-# 1. Lectura de Centros de Costo con respaldo estático original
-try:
-    docs_cc = db.collection("config_centros").order_by("nombre").stream()
-    lista_cc_dinamica = [doc.to_dict().get("nombre") for doc in docs_cc if doc.to_dict().get("nombre")]
-    if not lista_cc_dinamica:
-        lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
-except Exception:
-    lista_cc_dinamica = ["Las Rosas (CC 01)", "Chipana (CC 02)"]
-
-# 2. Lectura de Contratistas con respaldo estático original
-try:
-    docs_b2b = db.collection("config_contratistas").order_by("fecha_creacion", direction=firestore.Query.DESCENDING).stream()
-    lista_b2b_dinamica = [doc.to_dict().get("formato_kame") for doc in docs_b2b if doc.to_dict().get("formato_kame")]
-    if not lista_b2b_dinamica:
-        lista_b2b_dinamica = [
-            "76.543.210-K | Servicios Agrícolas del Maule",
-            "77.123.456-7 | Agrícola San Fernando Limitada",
-            "76.999.888-2 | Mano de Obra Terreno SpA"
-        ]
-except Exception:
-    lista_b2b_dinamica = [
-        "76.543.210-K | Servicios Agrícolas del Maule",
-        "77.123.456-7 | Agrícola San Fernando Limitada",
-        "76.999.888-2 | Mano de Obra Terreno SpA"
-    ]
-
-# 3. Lectura de Flores y Variedades del Catálogo (Clasificación Botánica Estricta)
-diccionario_flores_dinamico = {
-    "Ranunculo Romance": [], 
-    "Ranunculo Elegance": [], 
-    "Peonía": [], 
-    "Delphinium": []
-}
-try:
-    docs_flores = db.collection("config_flores").stream()
-    for doc in docs_flores:
-        dat = doc.to_dict()
-        fam_cruda = str(dat.get("familia", "")).strip().lower()
-        cod_f = dat.get("codigo")
-        nom_f = dat.get("nombre", "Sin Nombre")
-        color_f = dat.get("color", "#94a3b8")
-        
-        if cod_f is not None and nom_f != "Sin Nombre":
-            objeto_flor = {"codigo": int(cod_f), "nombre": str(nom_f), "color": str(color_f)}
-            
-            # Clasificación por hilos de texto exactos de la especie
-            if "romance" in fam_cruda:
-                diccionario_flores_dinamico["Ranunculo Romance"].append(objeto_flor)
-            elif "elegance" in fam_cruda:
-                diccionario_flores_dinamico["Ranunculo Elegance"].append(objeto_flor)
-            elif "peon" in fam_cruda:
-                diccionario_flores_dinamico["Peonía"].append(objeto_flor)
-            elif "delphi" in fam_cruda:
-                diccionario_flores_dinamico["Delphinium"].append(objeto_flor)
-except Exception as e_cat_flores:
-    st.caption(f"⚠️ Alerta catálogo: {e_cat_flores}")
-
-
-except Exception:
-    pass
-
-# GATILLO DE TERRENO: Descarga automática de registros bajo huso horario estricto chileno
-lista_datos_dia = []
-try:
-    inicio_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.min, tzinfo=zona_chile)
-    fin_hoy = datetime.datetime.combine(datetime.date.today(), datetime.time.max, tzinfo=zona_chile)
-    docs_hoy = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_hoy).where("FechaRegistro", "<=", fin_hoy).stream()
-    lista_datos_dia = [doc.to_dict() for doc in docs_hoy]
-    st.session_state.lista_datos_dia_cache = lista_datos_dia
-except Exception as e_consulta_automatica:
-    st.caption(f"⚠️ Nota de sincronización: {e_consulta_automatica}")
-
-# ==================================================================
-# 3. PORTAL DE ACCESO ÚNICO CON ESCUDO DE CAMPOS TRAMPA ANTI-AUTOCOMPLETADO
-# ==================================================================
-if not st.session_state.usuario_conectado:
-    st.html("""
-    <form style="display:none;" autocomplete="off">
-        <input type="text" name="username_fake" autocomplete="new-username" />
-        <input type="password" name="password_fake" autocomplete="new-password" />
-    </form>
-    <style>
-        input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
-            -webkit-text-fill-color: #f8fafc !important;
-            transition: background-color 5000s ease-in-out 0s;
-        }
-    </style>
-    """)
-    st.markdown("<h3 style='text-align: center; color: #38bdf8;'>🔐 Acceso Cosecha Flores Antivero</h3>", unsafe_allow_html=True)
-    
-    # 🛡️ ESCUDO AVANZADO ANTI-SUGERENCIAS OPERA / CHROME EN HOT-RELOAD
-    st.html("""
-        <style>
-            /* Prohibimos la inyección visual de globos de contraseñas de Opera */
-            input::-webkit-credentials-auto-fill-button,
-            input::-webkit-contacts-auto-fill-button {
-                visibility: hidden !important;
-                pointer-events: none !important;
-                position: absolute !important;
-            }
-            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
-                -webkit-text-fill-color: #f8fafc !important;
-                transition: background-color 5000s ease-in-out 0s !important;
-            }
-        </style>
-        <script>
-            // Escudo Javascript en microsegundos para anular el autocompletado rígido de Opera
-            setTimeout(function() {
-                const inputs = window.parent.document.querySelectorAll('input');
-                inputs.forEach(input => {
-                    input.setAttribute('autocomplete', 'new-password');
-                    input.setAttribute('id', 'clear_nocache_' + Math.random().toString(36).substring(7));
-                    input.setAttribute('autocorrect', 'off');
-                    input.setAttribute('spellcheck', 'false');
-                });
-            }, 100);
-        </script>
-    """)
-
-    with st.container(border=True):
-        st.markdown("### Iniciar Sesión")
-        
-        # 🔑 LLAVES CAMBIADAS A IDENTIFICADORES NEUTROS LIBRES DE RASTREO DE CREDENCIALES
-        input_usuario = st.text_input(
-            "INGRESA TU RUT O CORREO ADMINISTRADOR:", 
-            placeholder="Ej: admin@antivero.cl", 
-            key="campo_libre_terminal_user"
-        ).strip().lower()
-        
-        input_clave = st.text_input(
-            "CONTRASEÑA DE ACCESO:", 
-            type="password", 
-            placeholder="••••••••", 
-            key="campo_libre_terminal_pass"
-        )
-        
-        st.write("")
-        if st.button("🔑 Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
-            if input_usuario and input_clave:
-                try:
-                    user_ref = db.collection("usuarios").document(input_usuario).get()
-                    if user_ref.exists:
-                        datos_user = user_ref.to_dict()
-                        if datos_user.get("password") == input_clave:
-                            st.session_state.usuario_conectado = True
-                            st.session_state.rol_usuario = datos_user.get("rol", "operario")
-                            st.session_state.id_usuario_activo = input_usuario
-                            st.success(f"✅ Acceso concedido como: {st.session_state.rol_usuario.upper()}")
-                            st.rerun()
-                        else:
-                            st.error("❌ La contraseña ingresada es incorrecta.")
-                    else:
-                        st.error("❌ El usuario ingresado no está registrado en el sistema agrícola.")
-                except Exception as e:
-                    st.error(f"❌ Error de conexión con el servidor de Google: {e}")
-            else:
-                st.warning("⚠️ Por favor, complete ambos campos.")
-                
-        # ==============================================================
-        # 🚨 RESTAURACIÓN MÁSTER: RECUPERACIÓN DE CLAVES EXTRAS DE TERRENO 🚨
-        # ==============================================================
-        st.write("---")
-        with st.expander("❓ ¿Olvidó su Contraseña o RUT Inválido?", expanded=False):
-            st.caption("Solicite un cambio express. El administrador aprobará su nueva clave desde el Panel de Auditoría.")
-            with st.form("form_recuperacion_express_clave", clear_on_submit=True):
-                rut_olvido = st.text_input("Ingrese su RUT para Alerta (Sin puntos ni guión):", placeholder="Ej: 174031711", key="recup_rut_input").strip().lower()
-                if st.form_submit_button(" Enviar Alerta Express de Cambio", use_container_width=True):
-                    if rut_olvido and len(rut_olvido) >= 7:
-                        try:
-                            # Registramos la alerta en la colección que lee la Pestaña B del Admin
-                            db.collection("solicitudes_clave").document(rut_olvido).set({
-                                "usuario": rut_olvido,
-                                "estado": "pendiente",
-                                "fecha_solicitud": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
-                            })
-                            st.success(f" Alerta enviada con éxito para el RUT {rut_olvido}. Dé aviso al supervisor de turno.")
-                        except Exception as e_sol:
-                            st.error(f"Error al conectar la alerta: {e_sol}")
-                    else:
-                        st.warning(" Ingrese un RUT válido de campo.")
-
-    #  EL CANDADO MÁSTER DE ACCESO: Detiene la ejecución absoluta para que NO se dibuje la terminal abajo si no se ha logueado
-    st.stop()
-
-
-
-# ==================================================================
-# 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
-# ==================================================================
-with st.sidebar:
-    st.markdown(f" **Usuario Activo:** `{st.session_state.id_usuario_activo.upper()}`")
-    st.markdown(f" **Rol:** `{st.session_state.rol_usuario.upper()}`")
-    st.write("---")
-    
-    with st.expander(" Cambiar mi Contraseña", expanded=False):
-        with st.form("form_cambio_clave_universal", clear_on_submit=True):
-            nueva_p1 = st.text_input("Nueva Contraseña:", type="password", key="univ_p1")
-            nueva_p2 = st.text_input("Confirmar Contraseña:", type="password", key="univ_p2")
-            if st.form_submit_button("Guardar Nueva Clave", use_container_width=True):
-                if nueva_p1 and nueva_p1 == nueva_p2 and len(nueva_p1) >= 4:
-                    try:
-                        db.collection("usuarios").document(st.session_state.id_usuario_activo).update({"password": nueva_p1})
-                        st.success("¡Contraseña actualizada con éxito!")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                else:
-                    st.error("Las claves no coinciden o tienen menos de 4 caracteres.")
-
-    if st.session_state.rol_usuario == "admin":
-        st.write("---")
-        st.markdown("### Herramientas de Administrador")
-        with st.expander(" Registrar Nuevo Operario", expanded=False):
-            with st.form("form_registro_interno_admin", clear_on_submit=True):
-                reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
-                reg_clave = st.text_input("Contraseña inicial:", type="password", key="admin_reg_pass")
-                if st.form_submit_button("Crear Operario", use_container_width=True):
-                    if reg_rut and len(reg_clave) >= 4:
-                        try:
-                            if db.collection("usuarios").document(reg_rut).get().exists:
-                                st.error(" Este RUT ya existe en los registros.")
-                            else:
-                                db.collection("usuarios").document(reg_rut).set({"password": reg_clave, "rol": "operario"})
-                                st.success(f"¡RUT {reg_rut} creado con éxito!")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.warning(" Datos inválidos o clave muy corta.")
-        with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
-            with st.form("form_eliminar_operario", clear_on_submit=True):
-                rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
-                if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
-                    if rut_a_borrar and confirmar_check:
-                        try:
-                            doc_ref = db.collection("usuarios").document(rut_a_borrar)
-                            if doc_ref.get().exists:
-                                doc_ref.delete()
-                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado!")
-                            else:
-                                st.error("❌ El RUT ingresado no existe.")
-                        except Exception as e:
-                            st.error(f"Error al eliminar: {e}")
-                    else:
-                        st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
-
-        with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
-            try:
-                solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
-                lista_sol = [s.to_dict() for s in solicitudes]
-                if not lista_sol:
-                    st.caption("No hay alertas pendientes.")
-                else:
-                    for s in lista_sol:
-                        st.warning(f"⚠️ Usuario: {s['usuario']}")
-                        nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
-                        if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
-                            if len(nueva_clave_express) >= 4:
-                                db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
-                                db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
-                                st.success("¡Clave reconfigurada con éxito!")
-                                st.rerun()
-            except Exception as e:
-                st.caption(f"Error al leer alertas: {e}")
-
-    st.write("---")
-    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
-        st.session_state.usuario_conectado = False
-        st.session_state.rol_usuario = "operario"
-        st.session_state.id_usuario_activo = ""
-        st.rerun()
-
-# ==================================================================
-# ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
-# ==================================================================
-def validar_rut_chileno(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2: return False
-    cuerpo = rut_limpio[:-1]
-    dv_ingresado = rut_limpio[-1]
-    if not cuerpo.isdigit(): return False
-    suma = 0
-    multiplicador = 2
-    for c in reversed(cuerpo):
-        suma += int(c) * multiplicador
-        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
-    remat = 11 - (suma % 11)
-    dv_esperado = "0" if remat == 11 else ("K" if remat == 10 else str(remat))
-    return dv_ingresado == dv_esperado
-
-# ==================================================================
-# FORMATEADOR MAESTRO DE RUT DIARIO (PUNTOS Y GUION AUTOMÁTICOS)
-# ==================================================================
-def formatear_rut_chileno_completo(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2:
-        return rut_limpio
-    cuerpo = rut_limpio[:-1]
-    dv = rut_limpio[-1]
-    if cuerpo.isdigit():
-        cuerpo_int = int(cuerpo)
-        return f"{cuerpo_int:,}-{dv}".replace(",", ".")
-    else:
-        return f"{cuerpo}-{dv}"
-
-# ==================================================================
-# 5. ENRUTADOR DE PESTAÑAS AGRÍCOLAS REFORZADO (3 CASILLAS)
-# ==================================================================
-if st.session_state.rol_usuario == "admin":
-    tab_terminal, tab_credenciales, tab_auditoria = st.tabs([
-        "🚜 Terminal de Cosecha", 
-        "📋 Credenciales del Día (Fichas express)", 
-        "📊 Panel de Control y Auditoría"
-    ])
-else:
-    tab_terminal, tab_credenciales = st.tabs([
-        "🚜 Terminal de Cosecha", 
-        "📋 Credenciales del Día (Fichas express)"
-    ])
-    tab_auditoria = None
-    with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
-        with st.form("form_eliminar_operario", clear_on_submit=True):
-            rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-            confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario SpA.")
-            if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
-                if rut_a_borrar and confirmar_check:
-                    try:
-                        doc_ref = db.collection("usuarios").document(rut_a_borrar)
-                        if doc_ref.get().exists:
-                            doc_ref.delete()
-                            st.success(f"¡El usuario {rut_a_borrar} fue eliminado de FirebaseSpA!")
-                        else:
-                            st.error("❌ El RUT ingresado no existe.")
-                    except Exception as e:
-                        st.error(f"Error al eliminar: {e}")
-                else:
-                    st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
-
-                        
-        with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
-            try:
-                solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
-                lista_sol = [s.to_dict() for s in solicitudes]
-                if not lista_sol:
-                    st.caption("No hay alertas pendientes.")
-                else:
-                    for s in lista_sol:
-                        st.warning(f"⚠️ Usuario: {s['usuario']}")
-                        nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
-                        if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
-                            if len(nueva_clave_express) >= 4:
-                                db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
-                                db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
-                                st.success("¡Clave reconfigurada con éxito!")
-                                st.rerun()
-            except Exception as e:
-                st.caption(f"Error al leer alertas: {e}")
-                
-    st.write("---")
-    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
-        st.session_state.usuario_conectado = False
-        st.session_state.rol_usuario = "operario"
-        st.session_state.id_usuario_activo = ""
-        st.rerun()
-
-# ==================================================================
-# ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
-# ==================================================================
-def validar_rut_chileno(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2: return False
-    cuerpo = rut_limpio[:-1]
-    dv_ingresado = rut_limpio[-1]
-    if not cuerpo.isdigit(): return False
-    suma = 0
-    multiplicador = 2
-    for c in reversed(cuerpo):
-        suma += int(c) * multiplicador
-        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
-    remat = 11 - (suma % 11)
-    dv_esperado = "0" if remat == 11 else ("K" if remat == 10 else str(remat))
-    return dv_ingresado == dv_esperado
-
-# ==================================================================
-# FORMATEADOR MAESTRO DE RUT DIARIO (PUNTOS Y GUION AUTOMÁTICOS)
-# ==================================================================
-def formatear_rut_chileno_completo(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2:
-        return rut_limpio
-    cuerpo = rut_limpio[:-1]
-    dv = rut_limpio[-1]
-    if cuerpo.isdigit():
-        cuerpo_int = int(cuerpo)
-        return f"{cuerpo_int:,}-{dv}".replace(",", ".")
-    else:
-        return f"{cuerpo}-{dv}"
-
-# --- CONTENIDO DE LA PESTAÑA CENTRAL: REGISTRO DE CREDENCIALES ---
 with tab_credenciales:
     st.markdown("<h2 style='color:#38bdf8;'>📋 Registro y Enrolamiento de Fichas Express</h2>", unsafe_allow_html=True)
     st.caption("Configure el contratista, digite el RUT en el teclado espejo para otorgar un ID con QR.")
@@ -950,15 +844,93 @@ with tab_credenciales:
                         st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
                     else:
                         st.error(f"❌ El ID #{id_a_recuperar} no ha sido enrolado el día de hoy en este fundo.")
-
-
-
             else:
                 st.info("📝 No hay operarios matriculados hoy.")
         except Exception as e_t:
             st.caption(f"Nota de visualización de asistencia: {e_t}")
-
-
+            # ==============================================================
+            # DISPARADOR DUAL: LANZAMIENTO INMEDIATO DE IMPRESIÓN EXPORTACIÓN
+            # ==============================================================
+            zpl_lineas = [
+                "^XA",
+                f"^FO50,50^BY3^BCN,100,Y,N,N^FD{id_express}^FS",
+                f"^FO50,180^A0N,30,25^FDRUT: {rut_limpio}^FS",
+                "^FO50,220^A0N,25,20^FDFLORES ANTIVERO^FS",
+                "^XZ"
+            ]
+            zpl_unido = "\\n".join(zpl_lineas)
+            
+            # JavaScript puro acoplado al botón: Busca la Zebra, si falla abre menú del OS de inmediato
+            st.html(f"""
+            <script>
+                (function() {{
+                    fetch('http://127.0.0', {{ method: 'POST', body: "{zpl_unido}" }})
+                    .catch(function(err) {{
+                        window.parent.print();
+                    }});
+                }})();
+            </script>
+            """)
+            
+            st.rerun()
+        except Exception as ex:
+            st.error(f"❌ Error en el enrolamiento: {ex}")
+            
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    # Despliegue del Ticket QR impreso en pantalla con Botón de Impresión al Costado
+    qr_activo = st.session_state.get("qr_render_actual", None)
+    if "imprimir_ficha_trigger" not in st.session_state:
+        st.session_state.imprimir_ficha_trigger = False
+        
+    if qr_activo:
+        st.write("")
+        with st.container(border=True):
+            # Dividimos la tarjeta en 2 columnas simétricas
+            col_ticket_qr, col_ticket_btn = st.columns([1.5, 1.5])
+            
+            with col_ticket_qr:
+                st.image(qr_activo, caption=f"Ficha #{st.session_state.id_render_actual} Generada", width=160)
+                
+            with col_ticket_btn:
+                st.write("")
+                st.write("")
+                # Botón de impresión instantánea al costado del QR
+                if st.button("🖨️ IMPRIMIR FICHA", key="btn_print_ficha_matinal", use_container_width=True, type="primary"):
+                    st.session_state.imprimir_ficha_trigger = True
+                    st.rerun()
+                    
+                st.write("")
+                if st.button("🗑️ Siguiente Operario", key="clear_qr_view", use_container_width=True):
+                    st.session_state.qr_render_actual = None
+                    st.session_state.imprimir_ficha_trigger = False
+                    st.rerun()
+                    
+            # Interceptor Inteligente: Intenta Zebra, si falla abre menú del sistema
+            if st.session_state.imprimir_ficha_trigger:
+                st.session_state.imprimir_ficha_trigger = False
+                
+                id_p = st.session_state.get("id_render_actual", "100")
+                zpl_lineas = [
+                    "^XA",
+                    f"^FO50,50^BY3^BCN,100,Y,N,N^FD{id_p}^FS",
+                    "^FO50,180^A0N,30,25^FDFICHA EMITIDA^FS",
+                    "^FO50,220^A0N,25,20^FDFLORES ANTIVERO^FS",
+                    "^XZ"
+                ]
+                zpl_unido = "\\n".join(zpl_lineas)
+                
+                st.html(f"""
+                    <script>
+                        setTimeout(function() {{
+                            fetch('http://127.0.0', {{ method: 'POST', body: "{zpl_unido}" }})
+                            .catch(function(err) {{
+                                // Fallback automático si la Zebra no responde
+                                window.parent.print();
+                            }});
+                        }}, 150);
+                    </script>
+                """)
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])

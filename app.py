@@ -1081,7 +1081,7 @@ with tab_terminal:
 
 
         # ==============================================================
-        # COLUMNA DERECHA REFORZADA: MESÓN DE CARGA ACTUAL (PÁGINA 44)
+        # COLUMNA DERECHA REFORZADA: MESÓN DE CARGA ACTUAL CONTRASTADO
         # ==============================================================
         with col_derecha_consolidacion:
             st.markdown("<h2 style='color:#f8fafc;'>📥 Mesón de Carga Actual</h2>", unsafe_allow_html=True)
@@ -1090,6 +1090,23 @@ with tab_terminal:
             rut_final_meson = f"{rut_aux_meson[:-1]}-{rut_aux_meson[-1]}".upper() if len(rut_aux_meson) > 1 else rut_aux_meson.upper()
             if not rut_aux_meson: rut_final_meson = "00.000.000-0"
             
+            # Forzamos los colores oscuros de contraste de forma inline para burlar la caché
+            st.html("""
+                <style>
+                    /* Forzamos tipografía oscura y bordes visibles en el mesón de carga */
+                    .columna-meson-fijo button { background-color: #0f172a !important; border: 2px solid #475569 !important; }
+                    .columna-meson-fijo button p { color: #f8fafc !important; font-weight: bold !important; }
+                    .columna-meson-fijo button:active { background-color: #38bdf8 !important; }
+                    
+                    /* Forzamos el botón de Firebase a ser verde brillante con letras oscuras */
+                    .columna-meson-fijo .btn-inyectar-verde button { background-color: #10b981 !important; border: 2px solid #047857 !important; height: 50px !important; }
+                    .columna-meson-fijo .btn-inyectar-verde button p { color: #0f172a !important; font-size: 16px !important; }
+                    .columna-meson-fijo .btn-inyectar-verde button:disabled { background-color: #334155 !important; border-color: #1e293b !important; }
+                    .columna-meson-fijo .btn-inyectar-verde button:disabled p { color: #64748b !important; }
+                </style>
+            """)
+            
+            st.markdown('<div class="columna-meson-fijo">', unsafe_allow_html=True)
             with st.container(border=True):
                 st.markdown(f"**RUT Cosechador:** `{rut_final_meson}`")
                 flor_actual = st.session_state.get("flor_seleccionada_meson", None)
@@ -1098,43 +1115,19 @@ with tab_terminal:
                 
                 st.write("")
                 st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
-                
-                st.html("""
-                    <style>
-                        div[data-testid="stNumberInput"] input {
-                            background-color: #0f172a !important;
-                            color: #38bdf8 !important;
-                            border: 1px solid #334155 !important;
-                            border-radius: 8px !important;
-                            font-size: 24px !important;
-                            font-weight: bold !important;
-                            text-align: center !important;
-                            height: 52px !important;
-                        }
-                        input[type=number]::-webkit-inner-spin-button, 
-                        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-                        input[type=number] { -moz-appearance: textfield; }
-                        div[data-testid="stNumberInput"] label { display: none !important; }
-                    </style>
-                """)
 
                 col_m1, col_m2, col_m3 = st.columns([1, 1.6, 1])
                 with col_m1:
-                    if st.button("-5", key="btn_meson_menos_5", use_container_width=True):
+                    if st.button("-5", key="btn_m_menos_5_fijo", use_container_width=True):
                         st.session_state.cantidad_varas_meson = max(0, st.session_state.cantidad_varas_meson - 5)
                         st.rerun()
-                        
                 with col_m2:
-                    varas_digitadas = st.number_input(
-                        "Cantidad Varas:", min_value=0, max_value=500,
-                        value=int(st.session_state.cantidad_varas_meson), step=1, key="input_editable_varas_meson"
-                    )
+                    varas_digitadas = st.number_input("Varas:", min_value=0, max_value=500, value=int(st.session_state.cantidad_varas_meson), step=1, key="input_varas_meson_fijo")
                     if varas_digitadas != st.session_state.cantidad_varas_meson:
                         st.session_state.cantidad_varas_meson = int(varas_digitadas)
                         st.rerun()
-                        
                 with col_m3:
-                    if st.button("+5", key="btn_meson_mas_5", use_container_width=True):
+                    if st.button("+5", key="btn_m_mas_5_fijo", use_container_width=True):
                         st.session_state.cantidad_varas_meson += 5
                         st.rerun()
                 
@@ -1142,10 +1135,18 @@ with tab_terminal:
                 sin_flor = (st.session_state.get("flor_seleccionada_meson", None) is None)
                 cc_seleccionado = st.session_state.get("cc_activo_meson", "")
                 contratista_seleccionado = st.session_state.get("contratista_activo_meson", "")
-                
                 bloqueo_final = bloqueo_activo or sin_flor or not cc_seleccionado or not contratista_seleccionado
                 
-                if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
+                # Encapsulamos el botón final para pintarlo de color verde
+                st.markdown('<div class="btn-inyectar-verde">', unsafe_allow_html=True)
+                if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson_fijo", use_container_width=True, disabled=bloqueo_final):
+                    # (Aquí continúa tu lógica nativa de inyección a Firebase tal como la tienes)
+                    pass
+                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+                
+            if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
                     partes_contratista = contratista_seleccionado.split(" | ")
                     tz_chile = zoneinfo.ZoneInfo("America/Santiago")
                     

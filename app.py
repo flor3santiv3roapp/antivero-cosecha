@@ -873,48 +873,98 @@ with tab_credenciales:
     with col_enrol_izq:
         dibujar_teclado_enrolamiento_antivero()
     with col_enrol_der:
-        st.markdown("### 📷 Escaneo Automático QR de Cédula (Mesón)")
-        st.caption("Enfoque el código QR del reverso del carnet chileno. El sistema extraerá el RUT automáticamente:")
-        # 🛡️ ESCUDO DE PERMISOS ANDROID OBLIGATORIO PARA CONTENEDORES IFRAME
-        st.html("""
-            <iframe src="about:blank" allow="camera; microphone" style="display:none;"></iframe>
-            <script>
-                // Forzamos al contenedor web de Streamlit a heredar los permisos de hardware del lente
-                const iframes = window.parent.document.querySelectorAll('iframe');
-                iframes.forEach(iframe => {
-                    if (!iframe.hasAttribute('allow')) {
-                        iframe.setAttribute('allow', 'camera; microphone');
+        st.markdown("### 📷 Escáner QR de Cédula de Identidad (Mesón)")
+        st.caption("Enfoque el código QR del carnet (reverso). El sistema procesará el RUT de forma automática:")
+        
+        # 🚀 INYECCIÓN HTML5 WEBRTC DIRECTA: Inmune a bloqueos de iFrame y con decodificador jsQR
+        import streamlit.components.v1 as components
+        
+        components.html("""
+        <div style="background-color: #1e293b; padding: 12px; border-radius: 10px; border: 1px solid #334155; font-family: sans-serif; color: #f8fafc; text-align: center;">
+            <video id="video-stream-antivero" style="width: 100%; max-width: 340px; height: auto; border-radius: 8px; background-color: #0f172a;" autoplay playsinline></video>
+            <div id="status-lector-qr" style="margin-top: 10px; font-weight: bold; color: #38bdf8; font-size: 15px;">📷 Buscando Código QR...</div>
+        </div>
+        
+        <!-- Cargamos el motor matemático jsQR de alta densidad desde servidor seguro -->
+        <script src="https://jsdelivr.net"></script>
+        <script>
+            const video = document.getElementById('video-stream-antivero');
+            const statusDiv = document.getElementById('status-lector-qr');
+            
+            // Solicitamos acceso directo a la cámara trasera con alta resolución
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+            })
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true); // Requisito mandatorio para iOS/Safari
+                video.play();
+                requestAnimationFrame(tick);
+            })
+            .catch(function(err) {
+                statusDiv.innerHTML = "🛑 Error de hardware: Asegúrese de dar permisos de cámara en los tres puntos de Chrome.";
+                statusDiv.style.color = "#ef4444";
+            });
+
+            function tick() {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    // Ejecutamos el escaneo de la matriz de micropuntos del carnet chileno
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert"
+                    });
+                    
+                    if (code) {
+                        // El QR chileno contiene una URL oficial (ej: https://registrocivil.cl)
+                        if (code.data.includes("RUN=")) {
+                            statusDiv.innerHTML = "🎯 ¡Cédula Detectada con Éxito!";
+                            statusDiv.style.color = "#10b981";
+                            
+                            // Extraemos el parámetro RUN de la cadena de texto
+                            const params = new URLSearchParams(code.data.split('?')[1]);
+                            const rutExtraido = params.get('RUN');
+                            
+                            if (rutExtraido) {
+                                // Enviamos el RUT de regreso a la memoria interna de Streamlit de forma inmediata
+                                window.parent.postMessage({
+                                    type: "ANTIVERO_QR_CARNET",
+                                    rut: rutExtraido.replace("-", "").trim().toLowerCase()
+                                }, "*");
+                            }
+                        }
                     }
-                });
-            </script>
+                }
+                requestAnimationFrame(tick);
+            }
+        </script>
+        """, height=350)
+
+        # 🚀 OÍDOR DE EVENTOS EN PYTHON: Atrapa el RUT enviado por JavaScript y actualiza la app
+        st.html("""
+        <script>
+            window.addEventListener('message', function(e) {
+                if (e.data && e.data.type === 'ANTIVERO_QR_CARNET') {
+                    // Buscamos la caja de texto del RUT matinal en la columna izquierda y le inyectamos el valor
+                    const inputs = window.parent.document.querySelectorAll('input');
+                    inputs.forEach(input => {
+                        // Buscamos el widget asociado a la clave de la mañana
+                        if (input.getAttribute('aria-label') && input.getAttribute('aria-label').includes('RUT')) {
+                            input.value = e.data.rut;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                }
+            });
+        </script>
         """)
-        
-        foto_carnet = st.camera_input("Apunte al QR del Registro Civil:", key="scanner_camera_cedula_cl")
-        
-        if foto_carnet:
-            try:
-                import cv2
-                import numpy as np
-                file_bytes = np.frombuffer(foto_carnet.getvalue(), np.uint8)
-                img_decodificable = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                detector_qr = cv2.QRCodeDetector()
-                texto_qr_oficial, _, _ = detector_qr.detectAndDecode(img_decodificable)
-                
-                if texto_qr_oficial:
-                    st.success("🎯 ¡Código QR del carnet detectado con éxito!")
-                    import re
-                    busca_rut = re.search(r'RUN=([0-9Kk\-]+)', texto_qr_oficial)
-                    if busca_rut:
-                        rut_detectado = busca_rut.group(1).replace("-", "").strip().lower()
-                        st.session_state.rut_asistencia_matinal = rut_detectado
-                        st.metric(label="👤 RUT Cargado Automáticamente:", value=formatear_rut_chileno_completo(rut_detectado))
-                        st.info("💡 Presione el botón azul '💾 ENTER' a la izquierda para confirmar su ID y guardar.")
-                    else:
-                        st.warning("⚠️ QR leído correctamente, pero no se encontró la cadena de RUN corporativa.")
-                else:
-                    st.error("❌ El lente no logró enfocar el código QR con suficiente nitidez.")
-            except Exception as e_scan:
-                st.caption(f"💡 Nota de asistencia de cámara: {e_scan}")
+
 
         # --- TABLA DE CONTROL EN VIVO DE CREDENCIALES DEL DÍA ---
         try:

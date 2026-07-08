@@ -358,65 +358,83 @@ def dibujar_teclado_enrolamiento_antivero():
                     </script>
                 """)
 # ==================================================================
-# 2. CONFIGURACIÓN VISUAL OPTIMIZADA PARA COSECHA Y DISPOSITIVOS
+# 2. CONFIGURACIÓN VISUAL MAESTRA INTERFAZ TABLET FLORES ANTIVERO
 # ==================================================================
 st.set_page_config(layout="wide", page_title="Flores Antivero Cosecha")
 st.html("""
- <style>
- :root {
- --bg-dark: #0f172a;
- --panel-bg: #1e293b;
- --text-light: #f8fafc;
- --text-muted: #94a3b8;
- --border-color: #334155;
- --accent-blue: #38bdf8;
- }
- .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
- .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
- .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
- .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
- .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
- 
- /* 🚀 1. FORZAMOS QUE LOS BOTONES DE LAS PESTAÑAS MÁSTER SEAN ANCHOS Y COMO EN EL PC 🚀 */
- .stApp div[data-testid="stTabs"] [role="tablist"] button[data-baseweb="tab"] {
- min-width: 180px !important;
- flex-grow: 1 !important;
- text-align: center !important;
- font-size: 15px !important;
- padding: 12px 16px !important;
- background-color: #1e293b !important;
- border: 1px solid #334155 !important;
- border-radius: 8px 8px 0 0 !important;
- margin-right: 4px !important;
- }
- .stApp div[data-testid="stTabs"] [role="tablist"] {
- display: flex !important;
- justify-content: flex-start !important;
- width: 100% !important;
- overflow-x: visible !important;
- border-bottom: 2px solid #334155 !important;
- }
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --accent-blue: #38bdf8;
+        }
+        .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
+        .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
+        .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
+        .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
+        .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
+        
+        /* 🚀 1. REPARACIÓN INDESTRUCTIBLE DE LAS PESTAÑAS MÁSTER SUPERIORES EN TABLET 🚀 */
+        .stApp [data-testid="stTabs"] [role="tablist"] button {
+            min-width: 180px !important;
+            flex-grow: 1 !important;
+            text-align: center !important;
+            font-size: 15px !important;
+            padding: 12px 16px !important;
+            background-color: #1e293b !important;
+            border: 1px solid #334155 !important;
+            border-radius: 8px 8px 0 0 !important;
+            color: #94a3b8 !important;
+        }
+        .stApp [data-testid="stTabs"] [role="tablist"] button[aria-selected="true"] {
+            background-color: #38bdf8 !important;
+            color: #0f172a !important;
+            font-weight: bold !important;
+        }
+        .stApp [data-testid="stTabs"] [role="tablist"] {
+            display: flex !important;
+            justify-content: flex-start !important;
+            width: 100% !important;
+            overflow-x: visible !important;
+            border-bottom: 2px solid #334155 !important;
+        }
 
- div[data-testid="stButton"] button { 
- background-color: var(--panel-bg) !important; 
- color: var(--text-light) !important; 
- border: 1px solid var(--border-color) !important; 
- font-weight: bold !important; 
- font-size: 15px !important; 
- }
- div[data-testid="stButton"] button p { color: var(--text-light) !important; }
- div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { background-color: var(--accent-blue) !important; color: var(--bg-dark) !important; border-color: var(--accent-blue) !important; }
- div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { color: var(--bg-dark) !important; }
- 
- @media (max-width: 768px) {
- .stMainBlock > div > [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
- .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { width: 100% !important; margin-left: 0 !important; margin-bottom: 15px !important; }
- .antivero-header h1 { font-size: 18px; }
- }
- div[data-testid="stElementToolbar"] { display: none !important; }
- div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
- </style>
+        /* 🚀 2. REPARACIÓN DEL RUT VERDE CON FONDO BLANCO EN EL MESÓN DE CARGA 🚀 */
+        code, span[data-testid="stMarkdownMutedText"] {
+            background-color: #0f172a !important;
+            color: #38bdf8 !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            border: 1px solid #334155 !important;
+        }
+
+        /* Estilos base para los botones del sistema */
+        div[data-testid="stButton"] button { 
+            background-color: var(--panel-bg) !important; 
+            color: var(--text-light) !important; 
+            border: 1px solid var(--border-color) !important; 
+            font-weight: bold !important; 
+            font-size: 15px !important; 
+        }
+        div[data-testid="stButton"] button p { color: var(--text-light) !important; }
+        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { background-color: var(--accent-blue) !important; color: var(--bg-dark) !important; border-color: var(--accent-blue) !important; }
+        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { color: var(--bg-dark) !important; }
+        
+        @media (max-width: 768px) {
+            .stMainBlock > div > [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+            .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { width: 100% !important; margin-left: 0 !important; margin-bottom: 15px !important; }
+            .antivero-header h1 { font-size: 18px; }
+        }
+        div[data-testid="stElementToolbar"] { display: none !important; }
+        div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
+    </style>
 """)
+
 
 # ==================================================================
 # CONFIGURACIÓN DEL ENCABEZADO CON FECHA Y HORA OFICIAL DE CHILE

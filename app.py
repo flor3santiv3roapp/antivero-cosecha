@@ -1005,7 +1005,6 @@ with tab_terminal:
                 </style>
             """)
 
-
             # 🚀 SOLUCIÓN: GRILLA DE FAMILIAS 2 COLUMNAS HACIA ABAJO (CALCA DE TU VISIÓN)
             familias_lista = ["Ranunculo Romance", "Ranunculo Elegance", "Peonía", "Delphinium"]
             

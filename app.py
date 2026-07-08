@@ -951,22 +951,38 @@ with tab_terminal:
             
             bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
             
-            # Inicializamos la memoria de la familia activa si no existe
             if "familia_activa_meson" not in st.session_state:
                 st.session_state.familia_activa_meson = "Ranunculo Romance"
                 
-            # Estilos CSS idénticos para tus tarjetas en relieve fucsia de la fotografía
+            # 🛡️ RESTAURACIÓN DE CONTRASTE: CSS RÍGIDO CON LLAVES ÚNICAS POR BOTÓN 🛡️
             st.html("""
                 <style>
-                    .tarjeta-familia-btn {
-                        background-color: #1e293b !important;
-                        border: 1px solid #334155 !important;
+                    /* 1. Estilos exclusivos para los botones de las Familias superiores */
+                    button[key^="btn_nav_fam_"] {
                         border-radius: 8px !important;
                         padding: 12px !important;
-                        text-align: center !important;
                         font-weight: bold !important;
                         font-size: 15px !important;
                     }
+                    
+                    /* 2. Estilos para los botones invisibles de las variedades (No alteran el mesón) */
+                    button[key^="btn_tarjeta_fam_act_"] {
+                        background-color: transparent !important;
+                        border: none !important;
+                        height: 85px !important;
+                        width: 100% !important;
+                        box-shadow: none !important;
+                        z-index: 10 !important;
+                    }
+                    button[key^="btn_tarjeta_fam_act_"]:hover, 
+                    button[key^="btn_tarjeta_fam_act_"]:active, 
+                    button[key^="btn_tarjeta_fam_act_"]:focus {
+                        background-color: rgba(56, 189, 248, 0.1) !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                    }
+                    
+                    /* 3. Estructura de la Tarjeta en relieve fucsia de tu dibujo */
                     .tarjeta-flor-antivero { 
                         background-color: #1e293b !important; 
                         border: 1px solid #334155 !important; 
@@ -976,6 +992,7 @@ with tab_terminal:
                         width: 100% !important; 
                         text-align: left !important; 
                         min-height: 85px; 
+                        pointer-events: none !important;
                     }
                     .punto-color-flor { 
                         display: inline-block !important; 
@@ -987,6 +1004,7 @@ with tab_terminal:
                     }
                 </style>
             """)
+
 
             # 🚀 SOLUCIÓN: GRILLA DE FAMILIAS 2 COLUMNAS HACIA ABAJO (CALCA DE TU VISIÓN)
             familias_lista = ["Ranunculo Romance", "Ranunculo Elegance", "Peonía", "Delphinium"]

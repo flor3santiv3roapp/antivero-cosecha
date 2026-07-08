@@ -377,7 +377,7 @@ st.html("""
         .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
         .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
         
-        /* 🚀 1. REPARACIÓN INDESTRUCTIBLE DE LAS PESTAÑAS MÁSTER SUPERIORES EN TABLET 🚀 */
+        /* 🚀 1. REPARACIÓN DEFECTOS PESTAÑAS MÁSTER SUPERIORES EN TABLET (TEXTO BLANCO) 🚀 */
         .stApp [data-testid="stTabs"] [role="tablist"] button {
             min-width: 180px !important;
             flex-grow: 1 !important;
@@ -387,20 +387,22 @@ st.html("""
             background-color: #1e293b !important;
             border: 1px solid #334155 !important;
             border-radius: 8px 8px 0 0 !important;
-            color: #94a3b8 !important;
+            color: #ffffff !important; /* FORZAMOS TEXTO BLANCO BRILLANTE PARA LAS INACTIVAS */
+            opacity: 0.9 !important;
+        }
+        .stApp [data-testid="stTabs"] [role="tablist"] button p {
+            color: #ffffff !important; /* Escudo doble para navegadores móviles */
         }
         .stApp [data-testid="stTabs"] [role="tablist"] button[aria-selected="true"] {
             background-color: #38bdf8 !important;
             color: #0f172a !important;
             font-weight: bold !important;
+            opacity: 1 !important;
         }
-        .stApp [data-testid="stTabs"] [role="tablist"] {
-            display: flex !important;
-            justify-content: flex-start !important;
-            width: 100% !important;
-            overflow-x: visible !important;
-            border-bottom: 2px solid #334155 !important;
+        .stApp [data-testid="stTabs"] [role="tablist"] button[aria-selected="true"] p {
+            color: #0f172a !important; /* Texto oscuro para la pestaña que está activa */
         }
+
 
         /* 🚀 2. REPARACIÓN DEL RUT VERDE CON FONDO BLANCO EN EL MESÓN DE CARGA 🚀 */
         code, span[data-testid="stMarkdownMutedText"] {

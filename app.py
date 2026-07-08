@@ -357,61 +357,65 @@ def dibujar_teclado_enrolamiento_antivero():
                         }, 150);
                     </script>
                 """)
-
-
 # ==================================================================
-# 2. CONFIGURACIÓN VISUAL OPTIMIZADA PARA GIROS Y DISPOSITIVOS
+# 2. CONFIGURACIÓN VISUAL OPTIMIZADA PARA COSECHA Y DISPOSITIVOS
 # ==================================================================
 st.set_page_config(layout="wide", page_title="Flores Antivero Cosecha")
 st.html("""
-    <style>
-        :root {
-            --bg-dark: #0f172a;
-            --panel-bg: #1e293b;
-            --text-light: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-            --accent-blue: #38bdf8;
-        }
-        .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
-        .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
-        .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
-        .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
-        .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
-        div[data-testid="stButton"] button { 
-            background-color: var(--panel-bg) !important; 
-            color: var(--text-light) !important; 
-            border: 1px solid var(--border-color) !important; 
-            font-weight: bold !important; 
-            font-size: 15px !important; 
-        }
-        div[data-testid="stButton"] button p { 
-            color: var(--text-light) !important; 
-        }
-        div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { 
-            background-color: var(--accent-blue) !important; 
-            color: var(--bg-dark) !important; 
-            border-color: var(--accent-blue) !important; 
-        }
-        div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { 
-            color: var(--bg-dark) !important; 
-        }
-        @media (max-width: 768px) {
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] { 
-                flex-direction: column !important; 
-            }
-            .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { 
-                width: 100% !important; 
-                margin-left: 0 !important; 
-                margin-bottom: 15px !important; 
-            }
-            .antivero-header h1 { 
-                font-size: 18px; 
-            }
-        }
-        div[data-testid="stElementToolbar"] { display: none !important; }
-        div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
-    </style>
+ <style>
+ :root {
+ --bg-dark: #0f172a;
+ --panel-bg: #1e293b;
+ --text-light: #f8fafc;
+ --text-muted: #94a3b8;
+ --border-color: #334155;
+ --accent-blue: #38bdf8;
+ }
+ .stApp { background-color: var(--bg-dark) !important; color: var(--text-light) !important; }
+ .antivero-header { background: var(--panel-bg); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border: 1px solid var(--border-color); }
+ .antivero-header h1 { margin: 0; font-size: 22px; color: var(--accent-blue) !important; font-weight: bold; }
+ .stSelectbox label, .stTextInput label { font-weight: 700 !important; font-size: 12px !important; color: var(--text-muted) !important; text-transform: uppercase !important; }
+ .rut-display-box { background: var(--bg-dark); border: 2px solid #475569; border-radius: 8px; padding: 12px; text-align: center; font-size: 26px; font-weight: bold; color: var(--accent-blue); min-height: 58px; margin-bottom: 10px; }
+ 
+ /* 🚀 1. FORZAMOS QUE LOS BOTONES DE LAS PESTAÑAS MÁSTER SEAN ANCHOS Y COMO EN EL PC 🚀 */
+ .stApp div[data-testid="stTabs"] [role="tablist"] button[data-baseweb="tab"] {
+ min-width: 180px !important;
+ flex-grow: 1 !important;
+ text-align: center !important;
+ font-size: 15px !important;
+ padding: 12px 16px !important;
+ background-color: #1e293b !important;
+ border: 1px solid #334155 !important;
+ border-radius: 8px 8px 0 0 !important;
+ margin-right: 4px !important;
+ }
+ .stApp div[data-testid="stTabs"] [role="tablist"] {
+ display: flex !important;
+ justify-content: flex-start !important;
+ width: 100% !important;
+ overflow-x: visible !important;
+ border-bottom: 2px solid #334155 !important;
+ }
+
+ div[data-testid="stButton"] button { 
+ background-color: var(--panel-bg) !important; 
+ color: var(--text-light) !important; 
+ border: 1px solid var(--border-color) !important; 
+ font-weight: bold !important; 
+ font-size: 15px !important; 
+ }
+ div[data-testid="stButton"] button p { color: var(--text-light) !important; }
+ div[data-testid="stButton"] button:active, div[data-testid="stButton"] button:focus { background-color: var(--accent-blue) !important; color: var(--bg-dark) !important; border-color: var(--accent-blue) !important; }
+ div[data-testid="stButton"] button:active p, div[data-testid="stButton"] button:focus p { color: var(--bg-dark) !important; }
+ 
+ @media (max-width: 768px) {
+ .stMainBlock > div > [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+ .stMainBlock > div > [data-testid="stHorizontalBlock"] > div[data-testid="column"] { width: 100% !important; margin-left: 0 !important; margin-bottom: 15px !important; }
+ .antivero-header h1 { font-size: 18px; }
+ }
+ div[data-testid="stElementToolbar"] { display: none !important; }
+ div[data-testid="stDataFrameGridContainer"] button { display: none !important; }
+ </style>
 """)
 
 # ==================================================================
@@ -972,22 +976,26 @@ with tab_terminal:
             
         col_centro_flujo, col_derecha_consolidacion = st.columns([1.6, 1.2])
         with col_centro_flujo:
-            st.subheader("🌸 Selección de Familia de Flores")
-            
-            # 🚀 ASIGNACIÓN NOMINAL DIRECTA: Cada variable gobierna su propia lengüeta de forma inmune a errores
-            tab_romance, tab_elegance, tab_peonias, tab_delphi = st.tabs([
-                "🌹 Ranunculo Romance", 
-                "🌸 Ranunculo Elegance", 
-                "🌺 Peonías", 
-                "🌿 Delphinium"
-            ])
+            st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>🌸 Selección de Familia de Flores</h3>", unsafe_allow_html=True)
+            st.caption("Toque una familia en la grilla para desplegar sus variedades en el mesón:")
             
             bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
             
-            # --- ESTILOS CSS MASTER EXPANDIDOS PARA LAS TARJETAS DE TU FOTO ---
+            # Inicializamos la memoria de la familia activa si no existe
+            if "familia_activa_meson" not in st.session_state:
+                st.session_state.familia_activa_meson = "Ranunculo Romance"
+                
+            # Estilos CSS corregidos y aislados para que no alteren los colores del mesón
             st.html("""
                 <style>
-                    .zona-grilla-flores div[data-testid="column"] { margin-bottom: 12px !important; }
+                    /* Botones máster de Familias en la grilla de a dos */
+                    button[key^="btn_grid_fam_"] {
+                        border-radius: 8px !important;
+                        padding: 12px !important;
+                        font-weight: bold !important;
+                        font-size: 15px !important;
+                    }
+                    /* Tarjeta en relieve fucsia para las variedades */
                     .tarjeta-flor-antivero { 
                         background-color: #1e293b !important; 
                         border: 1px solid #334155 !important; 
@@ -997,6 +1005,7 @@ with tab_terminal:
                         width: 100% !important; 
                         text-align: left !important; 
                         min-height: 85px; 
+                        pointer-events: none !important;
                     }
                     .punto-color-flor { 
                         display: inline-block !important; 
@@ -1006,39 +1015,73 @@ with tab_terminal:
                         margin-right: 10px !important; 
                         vertical-align: middle !important; 
                     }
+                    /* Botón invisible sobre la tarjeta */
+                    button[key^="btn_tarjeta_act_"] {
+                        background-color: transparent !important;
+                        border: none !important;
+                        height: 85px !important;
+                        width: 100% !important;
+                        box-shadow: none !important;
+                    }
                 </style>
             """)
 
-            # ==============================================================
-            # PESTAÑA 1: RANUNCULO ROMANCE (CONECTADO A SU VARIABLE PROPIA)
-            # ==============================================================
-            with tab_romance:
-                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Ranunculo Romance:</p>", unsafe_allow_html=True)
-                lista_romance = diccionario_flores_dinamico.get("Ranunculo Romance", [])
-                if not lista_romance:
-                    lista_romance = [
-                        {"codigo": 226, "nombre": "Ranunculo Romance Nohan", "color": "#10b981"},
-                        {"codigo": 227, "nombre": "Ranunculo Romance GetLucky", "color": "#f97316"}
-                    ]
-                
-                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
-                for i in range(0, len(lista_romance), 2):
-                    bloque_par = lista_romance[i:i+2]
+            # 🚀 LECTURA DINÁMICA DE FAMILIAS REGISTRADAS EN FIREBASE 🚀
+            # Obtenemos las llaves del diccionario en tiempo real (Ranunculo Romance, Ranunculo Elegance, Peonía, Delphinium, etc.)
+            familias_lista = list(diccionario_flores_dinamico.keys())
+            if not familias_lista:
+                familias_lista = ["Ranunculo Romance", "Ranunculo Elegance", "Peonía", "Delphinium"]
+            
+            # Generamos de forma automática los botones de familias organizados estrictamente en bloques de a dos hacia abajo
+            for i in range(0, len(familias_lista), 2):
+                par_familias = familias_lista[i:i+2]
+                cols_fam = st.columns(2)
+                for idx, fam_item in enumerate(par_familias):
+                    with cols_fam[idx]:
+                        # Si la familia es la seleccionada, se ilumina con tu color azul brillante
+                        es_activa = (st.session_state.familia_activa_meson == fam_item)
+                        tipo_boton = "primary" if es_activa else "secondary"
+                        
+                        prefix_icono = "🌹 " if "Romance" in fam_item else ("🌸 " if "Elegance" in fam_item else ("🌺 " if "Peon" in fam_item else "🌿 "))
+                        
+                        if st.button(f"{prefix_icono}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_boton):
+                            st.session_state.familia_activa_meson = fam_item
+                            st.rerun()
+            
+            st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
+            
+            # DESPLIEGUE EXCLUSIVO DE LAS VARIADADES DE LA FAMILIA QUE ESTÁ PINCHADA
+            familia_actual = st.session_state.familia_activa_meson
+            lista_flores_render = diccionario_flores_dinamico.get(familia_actual, [])
+            
+            # Respaldos estáticos de tus páginas del PDF si Firebase está offline momentáneamente
+            if not lista_flores_render and familia_actual == "Ranunculo Romance":
+                lista_flores_render = [
+                    {"codigo": 228, "nombre": "Ranunculo Romance Seine", "color": "#3b82f6"},
+                    {"codigo": 230, "nombre": "Ranunculo Romance Montenvers", "color": "#a855f7"},
+                    {"codigo": 226, "nombre": "Ranunculo Romance Nohan", "color": "#10b981"},
+                    {"codigo": 227, "nombre": "Ranunculo Romance GetLucky", "color": "#f97316"}
+                ]
+            
+            if lista_flores_render:
+                st.markdown(f"<p style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>Variedades activas en {familia_actual}:</p>", unsafe_allow_html=True)
+                for i in range(0, len(lista_flores_render), 2):
+                    bloque_par = lista_flores_render[i:i+2]
                     cols_f = st.columns(2)
                     for idx, flor in enumerate(bloque_par):
                         with cols_f[idx]:
                             cod_f = flor["codigo"]
                             nom_f = flor["nombre"]
                             color_punto = flor.get("color", "#94a3b8")
-                            nombre_limpio = nom_f.replace("Ranunculo Romance ", "").strip()
+                            nombre_limpio = nom_f.replace(familia_actual + " ", "").replace("Peonía ", "").replace("Delphinium ", "").strip()
                             
-                            if st.button("", key=f"btn_tarjeta_rom_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                            if st.button("", key=f"btn_tarjeta_act_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
                                 st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
                                 st.session_state.cantidad_varas_meson = 30
                                 st.rerun()
                                 
                             st.html(f"""
-                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
+                                <div class="tarjeta-flor-antivero" style="margin-top: -68px;">
                                     <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
                                         <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
                                         {nombre_limpio}
@@ -1046,121 +1089,7 @@ with tab_terminal:
                                     <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
                                 </div>
                             """)
-                st.markdown('</div>', unsafe_allow_html=True)
 
-            # ==============================================================
-            # PESTAÑA 2: RANUNCULO ELEGANCE (CONECTADO A SU VARIABLE PROPIA)
-            # ==============================================================
-            with tab_elegance:
-                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Ranunculo Elegance:</p>", unsafe_allow_html=True)
-                lista_elegance = diccionario_flores_dinamico.get("Ranunculo Elegance", [])
-                if not lista_elegance:
-                    lista_elegance = [
-                        {"codigo": 211, "nombre": "Ranunculo Elegance Rosso", "color": "#ef4444"},
-                        {"codigo": 214, "nombre": "Ranunculo Elegance Bianco", "color": "#ffffff"}
-                    ]
-                
-                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
-                for i in range(0, len(lista_elegance), 2):
-                    bloque_par = lista_elegance[i:i+2]
-                    cols_f = st.columns(2)
-                    for idx, flor in enumerate(bloque_par):
-                        with cols_f[idx]:
-                            cod_f = flor["codigo"]
-                            nom_f = flor["nombre"]
-                            color_punto = flor.get("color", "#94a3b8")
-                            nombre_limpio = nom_f.replace("Ranunculo Elegance ", "").strip()
-                            
-                            if st.button("", key=f"btn_tarjeta_ele_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
-                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
-                                st.session_state.cantidad_varas_meson = 30
-                                st.rerun()
-                                
-                            st.html(f"""
-                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
-                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
-                                        {nombre_limpio}
-                                    </div>
-                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
-                                </div>
-                            """)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            # ==============================================================
-            # PESTAÑA 3: PEONÍAS (CONECTADO A SU VARIABLE PROPIA)
-            # ==============================================================
-            with tab_peonias:
-                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Peonía:</p>", unsafe_allow_html=True)
-                lista_peonias = diccionario_flores_dinamico.get("Peonías", [])
-                if not lista_peonias:
-                    lista_peonias = [
-                        {"codigo": 222, "nombre": "Peonía Sarah Bernhardt", "color": "#f472b6"},
-                        {"codigo": 223, "nombre": "Peonía Festiva Maxima", "color": "#ffffff"}
-                    ]
-                
-                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
-                for i in range(0, len(lista_peonias), 2):
-                    bloque_par = lista_peonias[i:i+2]
-                    cols_f = st.columns(2)
-                    for idx, flor in enumerate(bloque_par):
-                        with cols_f[idx]:
-                            cod_f = flor["codigo"]
-                            nom_f = flor["nombre"]
-                            color_punto = flor.get("color", "#94a3b8")
-                            nombre_limpio = nom_f.replace("Peonía ", "").strip()
-                            
-                            if st.button("", key=f"btn_tarjeta_peo_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
-                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
-                                st.session_state.cantidad_varas_meson = 30
-                                st.rerun()
-                                
-                            st.html(f"""
-                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
-                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
-                                        {nombre_limpio}
-                                    </div>
-                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
-                                </div>
-                            """)
-                st.markdown('</div>', unsafe_allow_html=True)
-            # ==============================================================
-            # PESTAÑA 4: DELPHINIUM (CONECTADO A SU VARIABLE PROPIA Y LIMPIO)
-            # ==============================================================
-            with tab_delphi:
-                st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:15px;'>Seleccione Delphinium:</p>", unsafe_allow_html=True)
-                lista_delphi = diccionario_flores_dinamico.get("Delphinium", [])
-                
-                if not lista_delphi:
-                    lista_delphi = [{"codigo": 224, "nombre": "Delphinium Guardian Mix", "color": "#3b82f6"}]
-                
-                st.markdown('<div class="zona-grilla-flores">', unsafe_allow_html=True)
-                for i in range(0, len(lista_delphi), 2):
-                    bloque_par = lista_delphi[i:i+2]
-                    cols_f = st.columns(2)
-                    for idx, flor in enumerate(bloque_par):
-                        with cols_f[idx]:
-                            cod_f = flor["codigo"]
-                            nom_f = flor["nombre"]
-                            color_punto = flor.get("color", "#3b82f6")
-                            nombre_limpio = nom_f.replace("Delphinium ", "").replace("Delfinium ", "").strip()
-                            
-                            if st.button("", key=f"btn_tarjeta_del_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
-                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
-                                st.session_state.cantidad_varas_meson = 30
-                                st.rerun()
-                                
-                            st.html(f"""
-                                <div class="tarjeta-flor-antivero" style="margin-top: -68px; pointer-events: none;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
-                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
-                                        {nombre_limpio}
-                                    </div>
-                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
-                                </div>
-                            """)
-                st.markdown('</div>', unsafe_allow_html=True)
 
         # ==============================================================
         # COLUMNA DERECHA REFORZADA: MESÓN DE CARGA ACTUAL (PÁGINA 44)

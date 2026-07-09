@@ -568,40 +568,37 @@ except Exception:
         "76.999.888-2 | Mano de Obra Terreno SpA"
     ]
 
-# 3. Lectura de Flores y Variedades del Catálogo (Clasificación Botánica Estricta)
+# 3. Lectura de Flores y Variedades del Catálogo (Soporte Alfanumérico Kame Estricto)
 diccionario_flores_dinamico = {
-    "Ranunculo Romance": [], 
-    "Ranunculo Elegance": [], 
-    "Peonía": [], 
+    "Ranunculo Romance": [],  
+    "Ranunculo Standard": [], # ➕ Agregamos tu nueva familia de la planilla maestra
+    "Peonías": [], 
     "Delphinium": []
 }
 try:
     docs_flores = db.collection("config_flores").stream()
     for doc in docs_flores:
         dat = doc.to_dict()
-        fam_cruda = str(dat.get("familia", "")).strip().lower()
+        fam_cruda = str(dat.get("familia", "")).strip()
         cod_f = dat.get("codigo")
         nom_f = dat.get("nombre", "Sin Nombre")
         color_f = dat.get("color", "#94a3b8")
         
         if cod_f is not None and nom_f != "Sin Nombre":
-            objeto_flor = {"codigo": int(cod_f), "nombre": str(nom_f), "color": str(color_f)}
+            # Guardamos el código estrictamente como String (Texto) para soportar guiones y letras
+            objeto_flor = {"codigo": str(cod_f).strip(), "nombre": str(nom_f).strip(), "color": str(color_f).strip()}
             
-            # Clasificación por hilos de texto exactos de la especie
-            if "romance" in fam_cruda:
+            # Clasificación contable por coincidencia exacta de texto de tu planilla
+            if "Romance" in fam_cruda:
                 diccionario_flores_dinamico["Ranunculo Romance"].append(objeto_flor)
-            elif "elegance" in fam_cruda:
-                diccionario_flores_dinamico["Ranunculo Elegance"].append(objeto_flor)
-            elif "peon" in fam_cruda:
-                diccionario_flores_dinamico["Peonía"].append(objeto_flor)
-            elif "delphi" in fam_cruda:
+            elif "Standard" in fam_cruda:
+                diccionario_flores_dinamico["Ranunculo Standard"].append(objeto_flor)
+            elif "Peon" in fam_cruda:
+                diccionario_flores_dinamico["Peonías"].append(objeto_flor)
+            elif "Delphi" in fam_cruda:
                 diccionario_flores_dinamico["Delphinium"].append(objeto_flor)
 except Exception as e_cat_flores:
-    st.caption(f"⚠️ Alerta catálogo: {e_cat_flores}")
-
-
-except Exception:
-    pass
+    st.caption(f"⚠️ Alerta de sincronización de catálogo: {e_cat_flores}")
 
 # GATILLO DE TERRENO: Descarga automática de registros bajo huso horario estricto chileno
 lista_datos_dia = []
@@ -694,8 +691,7 @@ if not st.session_state.usuario_conectado:
                 except Exception as e:
                     st.error(f"Error de conexión con el servidor de Google: {e}")
             else:
-                st.warning("Por favor, complete ambos campos.")
-                
+                st.warning("Por favor, complete ambos campos.")         
     # ==============================================================
     # RESTAURACIÓN MÁSTER: RECUPERACIÓN DE CLAVES EXTRAS DE TERRENO 
     # ==============================================================
@@ -723,9 +719,6 @@ if not st.session_state.usuario_conectado:
                 else:
                     st.warning("Ingrese un RUT válido de campo.")
     st.stop()
-
-
-
 # ==================================================================
 # 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
 # ==================================================================
@@ -952,6 +945,7 @@ with tab_credenciales:
         # 🚀 INYECCIÓN HTML5 WEBRTC DIRECTA CON AUTOENFOQUE CONTINUO CRÍTICO 🚀
         import streamlit.components.v1 as components
         components.html("""
+                        
         <div style="background-color: #1e293b; padding: 12px; border-radius: 10px; border: 1px solid #334155; font-family: sans-serif; color: #f8fafc; text-align: center;">
             <p style="margin-top:0; font-size:14px; color:#94a3b8;">Lector QR Directo por Cámara (Enfoque Continuo)</p>
             <video id="video-stream-matinal" style="width: 100%; max-width: 320px; height: auto; border-radius: 8px; background:#0f172a;" autoplay playsinline></video>
@@ -1104,105 +1098,56 @@ with tab_credenciales:
 
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
+    # 🛡️ Candado inteligente global hererable para todas las subcolumnas
+    bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
+    
+    if "familia_activa_meson" not in st.session_state:
+        st.session_state.familia_activa_meson = "Ranunculo Romance"
+
+    # 🚀 CONTENEDOR 1: División máster horizontal de la pantalla de la tablet
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])
+    
     with col_panel_izq:
-        # Llamamos al teclado de lectura express de tu fotografía
+        # Acoplamos el teclado numérico espejo compacto de tu fotografía
         dibujar_teclado_maqueta_antivero()
         
     with col_panel_central_derecho:
-        if "flor_seleccionada_meson" not in st.session_state:
+        if "flor_seleccionada_meson" not in st.session_state: 
             st.session_state.flor_seleccionada_meson = None
-        if "cantidad_varas_meson" not in st.session_state:
+        if "cantidad_varas_meson" not in st.session_state: 
             st.session_state.cantidad_varas_meson = 30
             
+        # 🚀 CONTENEDOR 2: Sub-división interna (Centro de Flores y Mesón Derecho)
         col_centro_flujo, col_derecha_consolidacion = st.columns([1.6, 1.2])
+        
         with col_centro_flujo:
             st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>🌸 Selección de Familia de Flores</h3>", unsafe_allow_html=True)
-            st.caption("Toque una familia en la grilla para desplegar sus variedades en el mesón:")
+            st.caption("Toque una familia para desplegar sus variedades en el mesón:")
             
-            bloqueo_activo = st.session_state.get("rut_bloqueado_operacion", True)
+            # Estilos CSS de alto contraste para las cajas de a dos de las familias
+            st.html("<style>button[key^='btn_grid_fam_'] { border-radius:8px !important; padding:12px !important; font-weight:bold !important; font-size:15px !important; }</style>")
             
-            # Inicializamos la memoria de la familia activa si no existe
-            if "familia_activa_meson" not in st.session_state:
-                st.session_state.familia_activa_meson = "Ranunculo Romance"
-                
-            # Estilos CSS corregidos y aislados para que no alteren los colores del mesón
-            st.html("""
-                <style>
-                    /* Botones máster de Familias en la grilla de a dos */
-                    button[key^="btn_grid_fam_"] {
-                        border-radius: 8px !important;
-                        padding: 12px !important;
-                        font-weight: bold !important;
-                        font-size: 15px !important;
-                    }
-                    /* Tarjeta en relieve fucsia para las variedades */
-                    .tarjeta-flor-antivero { 
-                        background-color: #1e293b !important; 
-                        border: 1px solid #334155 !important; 
-                        border-left: 6px solid #ec4899 !important; 
-                        border-radius: 10px !important; 
-                        padding: 14px 18px !important; 
-                        width: 100% !important; 
-                        text-align: left !important; 
-                        min-height: 85px; 
-                        pointer-events: none !important;
-                    }
-                    .punto-color-flor { 
-                        display: inline-block !important; 
-                        width: 14px !important; 
-                        height: 14px !important; 
-                        border-radius: 50% !important; 
-                        margin-right: 10px !important; 
-                        vertical-align: middle !important; 
-                    }
-                    /* Botón invisible sobre la tarjeta */
-                    button[key^="btn_tarjeta_act_"] {
-                        background-color: transparent !important;
-                        border: none !important;
-                        height: 85px !important;
-                        width: 100% !important;
-                        box-shadow: none !important;
-                    }
-                </style>
-            """)
-
-            # 🚀 LECTURA DINÁMICA DE FAMILIAS REGISTRADAS EN FIREBASE 🚀
-            # Obtenemos las llaves del diccionario en tiempo real (Ranunculo Romance, Ranunculo Elegance, Peonía, Delphinium, etc.)
-            familias_lista = list(diccionario_flores_dinamico.keys())
-            if not familias_lista:
-                familias_lista = ["Ranunculo Romance", "Ranunculo Elegance", "Peonía", "Delphinium"]
+            # Grilla fija 2x2 para las especies botánicas
+            familias_lista = list(diccionario_flores_dinamico.keys()) if diccionario_flores_dinamico else ["Ranunculo Romance", "Ranunculo Elegance", "Ranunculo Standard", "Peonías", "Delphinium"]
             
-            # Generamos de forma automática los botones de familias organizados estrictamente en bloques de a dos hacia abajo
             for i in range(0, len(familias_lista), 2):
                 par_familias = familias_lista[i:i+2]
                 cols_fam = st.columns(2)
                 for idx, fam_item in enumerate(par_familias):
                     with cols_fam[idx]:
-                        # Si la familia es la seleccionada, se ilumina con tu color azul brillante
                         es_activa = (st.session_state.familia_activa_meson == fam_item)
-                        tipo_boton = "primary" if es_activa else "secondary"
+                        tipo_b = "primary" if es_activa else "secondary"
+                        prefix = "🌹 " if "Romance" in fam_item else ("🌸 " if "Elegance" in fam_item else ("✨ " if "Standard" in fam_item else ("🌺 " if "Peon" in fam_item else "🌿 ")))
                         
-                        prefix_icono = "🌹 " if "Romance" in fam_item else ("🌸 " if "Elegance" in fam_item else ("🌺 " if "Peon" in fam_item else "🌿 "))
-                        
-                        if st.button(f"{prefix_icono}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_boton):
+                        if st.button(f"{prefix}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_b):
                             st.session_state.familia_activa_meson = fam_item
                             st.rerun()
             
             st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
             
-            # DESPLIEGUE EXCLUSIVO DE LAS VARIADADES DE LA FAMILIA QUE ESTÁ PINCHADA
+            # Renderizador inferior de variedades de la familia seleccionada
             familia_actual = st.session_state.familia_activa_meson
-            lista_flores_render = diccionario_flores_dinamico.get(familia_actual, [])
-            
-            # Respaldos estáticos de tus páginas del PDF si Firebase está offline momentáneamente
-            if not lista_flores_render and familia_actual == "Ranunculo Romance":
-                lista_flores_render = [
-                    {"codigo": 228, "nombre": "Ranunculo Romance Seine", "color": "#3b82f6"},
-                    {"codigo": 230, "nombre": "Ranunculo Romance Montenvers", "color": "#a855f7"},
-                    {"codigo": 226, "nombre": "Ranunculo Romance Nohan", "color": "#10b981"},
-                    {"codigo": 227, "nombre": "Ranunculo Romance GetLucky", "color": "#f97316"}
-                ]
+            lista_flores_render = diccionario_flores_dinamico.get(familia_actual, []) if diccionario_flores_dinamico else []
             
             if lista_flores_render:
                 st.markdown(f"<p style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>Variedades activas en {familia_actual}:</p>", unsafe_allow_html=True)
@@ -1211,115 +1156,82 @@ with tab_terminal:
                     cols_f = st.columns(2)
                     for idx, flor in enumerate(bloque_par):
                         with cols_f[idx]:
-                            cod_f = flor["codigo"]
-                            nom_f = flor["nombre"]
-                            color_punto = flor.get("color", "#94a3b8")
-                            nombre_limpio = nom_f.replace(familia_actual + " ", "").replace("Peonía ", "").replace("Delphinium ", "").strip()
+                            cod_f, nom_f = flor["codigo"], flor["nombre"]
+                            nombre_limpio = nom_f.replace("Ranunculo Romance ", "").replace("Ranunculo Elegance ", "").replace("Ranunculo Standard ", "").replace("Ranunculus Standard ", "").replace("Peonía ", "").replace("Peonías ", "").replace("Delphinium ", "").strip()
+                            label_estetico = f"•  {nombre_limpio}  (Cód: {cod_f})"
                             
-                            if st.button("", key=f"btn_tarjeta_act_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
+                            st.html(f'<style>div[data-testid="stColumn"] button[key="btn_tarjeta_fin_{cod_f}"] {{ background-color:#1e293b !important; border:1px solid #334155 !important; border-left:6px solid #ec4899 !important; border-radius:10px !important; min-height:78px !important; width:100% !important; text-align:left !important; padding-left:18px !important; display:block !important; }} div[data-testid="stColumn"] button[key="btn_tarjeta_fin_{cod_f}"] p {{ color:#f8fafc !important; text-align:left !important; font-weight:bold !important; font-size:16px !important; }} div[data-testid="stColumn"] button[key="btn_tarjeta_fin_{cod_f}"]:active {{ background-color:#38bdf8 !important; }}</style>')
+                            if st.button(label_estetico, key=f"btn_tarjeta_fin_{cod_f}", use_container_width=True, disabled=bloqueo_activo):
                                 st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f}
                                 st.session_state.cantidad_varas_meson = 30
                                 st.rerun()
-                                
-                            st.html(f"""
-                                <div class="tarjeta-flor-antivero" style="margin-top: -68px;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">
-                                        <span class="punto-color-flor" style="background-color: {color_punto} !important;"></span>
-                                        {nombre_limpio}
-                                    </div>
-                                    <div style="font-size: 13px; color: #94a3b8;">Código KAME: {cod_f}</div>
-                                </div>
-                            """)
 
-
-        # ==============================================================
-        # COLUMNA DERECHA REFORZADA: MESÓN DE CARGA ACTUAL (PÁGINA 44)
-        # ==============================================================
         with col_derecha_consolidacion:
-            st.markdown("<h2 style='color:#f8fafc;'>📥 Mesón de Carga Actual</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color:#f8fafc; margin-top:0;'>📥 Mesón</h2>", unsafe_allow_html=True)
+            rut_aux = st.session_state.get("rut_cosechador", "")
+            rut_final = f"{rut_aux[:-1]}-{rut_aux[-1]}".upper() if len(rut_aux) > 1 else rut_aux.upper()
             
-            rut_aux_meson = st.session_state.get("rut_cosechador", "")
-            rut_final_meson = f"{rut_aux_meson[:-1]}-{rut_aux_meson[-1]}".upper() if len(rut_aux_meson) > 1 else rut_aux_meson.upper()
-            if not rut_aux_meson: rut_final_meson = "00.000.000-0"
-            
+            st.html("<style>.columna-meson button { background-color:#0f172a !important; border:2px solid #475569 !important; } .columna-meson button p { color:#f8fafc !important; font-weight:bold !important; } .columna-meson .btn-verde button { background-color:#10b981 !important; border:2px solid #047857 !important; height:50px !important; } .columna-meson .btn-verde button p { color:#0f172a !important; font-size:16px !important; }</style>")
+            st.markdown('<div class="columna-meson">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown(f"**RUT Cosechador:** `{rut_final_meson}`")
-                flor_actual = st.session_state.get("flor_seleccionada_meson", None)
-                flor_nom = flor_actual["nombre"] if flor_actual else "Ninguna"
-                st.markdown(f"**Flor:** <span style='color:#38bdf8; font-weight:bold;'>{flor_nom}</span>", unsafe_allow_html=True)
+                st.markdown(f"**RUT:** `{rut_final if rut_aux else '00.000.000-0'}`")
+                st.markdown(f"**Flor:** <span style='color:#38bdf8; font-weight:bold;'>{st.session_state.flor_seleccionada_meson['nombre'] if st.session_state.flor_seleccionada_meson else 'Ninguna'}</span>", unsafe_allow_html=True)
+                st.caption("⚙️ Edita varas:")
                 
-                st.write("")
-                st.caption("⚙️ ¿Saldo de hilera? Edita varas:")
-                
-                st.html("""
-                    <style>
-                        div[data-testid="stNumberInput"] input {
-                            background-color: #0f172a !important;
-                            color: #38bdf8 !important;
-                            border: 1px solid #334155 !important;
-                            border-radius: 8px !important;
-                            font-size: 24px !important;
-                            font-weight: bold !important;
-                            text-align: center !important;
-                            height: 52px !important;
-                        }
-                        input[type=number]::-webkit-inner-spin-button, 
-                        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-                        input[type=number] { -moz-appearance: textfield; }
-                        div[data-testid="stNumberInput"] label { display: none !important; }
-                    </style>
-                """)
-
-                col_m1, col_m2, col_m3 = st.columns([1, 1.6, 1])
+                # 🚀 SOLUCIÓN VISUAL: Diseño compacto en una sola hilera alineada
+                col_m1, col_m2, col_m3 = st.columns([1.2, 2.2, 1.2])
                 with col_m1:
-                    if st.button("-5", key="btn_meson_menos_5", use_container_width=True):
-                        st.session_state.cantidad_varas_meson = max(0, st.session_state.cantidad_varas_meson - 5)
+                    # Resta 5 unidades directamente a la memoria de la tablet
+                    if st.button("-5", key="btn_m_menos_5_final_fijo", use_container_width=True):
+                        st.session_state.cantidad_varas_meson = max(0, st.session_state.get("cantidad_varas_meson", 30) - 5)
                         st.rerun()
                         
                 with col_m2:
-                    varas_digitadas = st.number_input(
-                        "Cantidad Varas:", min_value=0, max_value=500,
-                        value=int(st.session_state.cantidad_varas_meson), step=1, key="input_editable_varas_meson"
+                    # 🚀 LA SOLUCIÓN: Quitamos la llave 'key' fija para destrabar los botones externos 🚀
+                    varas_puente = st.number_input(
+                        "Varas:", min_value=0, max_value=500,
+                        value=int(st.session_state.get("cantidad_varas_meson", 30)),
+                        step=1, label_visibility="collapsed"
                     )
-                    if varas_digitadas != st.session_state.cantidad_varas_meson:
-                        st.session_state.cantidad_varas_meson = int(varas_digitadas)
+                    # Si el operario usa las flechas nativas internas de la tablet, actualizamos la memoria
+                    if varas_puente != st.session_state.get("cantidad_varas_meson", 30):
+                        st.session_state.cantidad_varas_meson = int(varas_puente)
+                        st.fragment(lambda: None) # Limpia el hilo de ejecución táctil
                         st.rerun()
                         
                 with col_m3:
-                    if st.button("+5", key="btn_meson_mas_5", use_container_width=True):
-                        st.session_state.cantidad_varas_meson += 5
+                    # Suma 5 unidades directamente a la memoria de la tablet
+                    if st.button("+5", key="btn_m_mas_5_final_fijo", use_container_width=True):
+                        st.session_state.cantidad_varas_meson = min(500, st.session_state.get("cantidad_varas_meson", 30) + 5)
                         st.rerun()
+
                 
                 st.write("")
-                sin_flor = (st.session_state.get("flor_seleccionada_meson", None) is None)
-                cc_seleccionado = st.session_state.get("cc_activo_meson", "")
-                contratista_seleccionado = st.session_state.get("contratista_activo_meson", "")
-                
-                bloqueo_final = bloqueo_activo or sin_flor or not cc_seleccionado or not contratista_seleccionado
-                
-                if st.button("✅ Confirmar e Inyectar a Firebase", key="btn_confirmar_inyeccion_meson", use_container_width=True, disabled=bloqueo_final):
-                    partes_contratista = contratista_seleccionado.split(" | ")
-                    tz_chile = zoneinfo.ZoneInfo("America/Santiago")
-                    
-                    nuevo_registro = {
-                        "CentroCosto": cc_seleccionado,
-                        "RutContratista": partes_contratista[0].strip() if len(partes_contratista) > 0 else "",
-                        "ContratistaNombre": partes_contratista[1].strip() if len(partes_contratista) > 1 else "",
-                        "RutCosechador": st.session_state.rut_cosechador,
-                        "CodigoArticulo": int(st.session_state.flor_seleccionada_meson["codigo"]),
-                        "DescripcionArticulo": st.session_state.flor_seleccionada_meson["nombre"],
-                        "CantidadVaras": int(st.session_state.cantidad_varas_meson),
-                        "FechaRegistro": datetime.datetime.now(tz_chile),
-                        "IdExpressUsado": st.session_state.id_express_cosecha
-                    }
+                bloq_f = bloqueo_activo or (st.session_state.flor_seleccionada_meson is None) or not st.session_state.get("cc_activo_meson", "") or not st.session_state.get("contratista_activo_meson", "")
+                st.markdown('<div class="btn-verde">', unsafe_allow_html=True)
+                if st.button("✅ Confirmar e Inyectar", key="btn_inj", use_container_width=True, disabled=bloq_f):
                     try:
-                        db.collection("cosecha_diaria").add(nuevo_registro)
-                        st.success("✅ Carga inyectada con éxito.")
+                        p_c = st.session_state.contratista_activo_meson.split(" | ")
+                        db.collection("cosecha_diaria").add({
+                            "CentroCosto": st.session_state.cc_activo_meson,
+                            "RutContratista": p_c[0].strip() if len(p_c) > 0 else "",
+                            "ContratistaNombre": p_c[1].strip() if len(p_c) > 1 else "",
+                            "RutCosechador": st.session_state.rut_cosechador,
+                            "CodigoArticulo": str(st.session_state.flor_seleccionada_meson["codigo"]),
+                            "DescripcionArticulo": st.session_state.flor_seleccionada_meson["nombre"],
+                            "CantidadVaras": int(st.session_state.cantidad_varas_meson),
+                            "FechaRegistro": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago")),
+                            "IdExpressUsado": st.session_state.id_express_cosecha
+                        })
+                        st.success("✅ ¡Inyectado!")
                         st.session_state.flor_seleccionada_meson = None
                         st.session_state.cantidad_varas_meson = 30
                         st.rerun()
-                    except Exception as e_fb:
-                        st.error(f"❌ Error Firebase: {e_fb}")
+                    except Exception as e: st.error(f"Error: {e}")
+                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+
 
             # 2. HISTORIAL DIARIO DE TERRENO ACTUALIZADO AUTOMÁTICAMENTE
             st.write("")
@@ -1467,37 +1379,41 @@ if st.session_state.rol_usuario == "admin" and tab_auditoria is not None:
 
         with s_flores:
             with st.form("form_add_flor_catalogo_libre", clear_on_submit=True):
-                nueva_familia_libre = st.text_input("Escribe la Familia Agrícola / Especie:", placeholder="Ej: Rosas, Peonía").strip()
-                nuevo_cod_flor = st.number_input("Código de Artículo único (Kame ERP):", min_value=1, value=225, step=1, key="admin_add_cod_int")
-                nuevo_nom_flor = st.text_input("Nombre de la Variedad / Color comercial:", placeholder="Ej: Ranunculo Romance Rosado", key="admin_add_nom_str").strip()
-                
-                # 🎨 EL CLON DE WORD: Selector de color interactivo táctil para el administrador
-                nuevo_color_hex = st.color_picker(
-                    "🎨 Seleccione el color visual para el círculo de la tarjeta:", 
-                    value="#38bdf8", 
-                    key="admin_add_color_picker"
+                # 🚀 CAMBIO 1: Menú desplegable para asegurar que la familia quede bien escrita
+                nueva_familia_libre = st.selectbox(
+                    "SELECCIONE LA FAMILIA AGRÍCOLA / ESPECIE:",
+                    ["Ranunculo Romance", "Ranunculo Elegance", "Ranunculo Standard", "Peonías", "Delphinium"],
+                    key="admin_add_fam_choice"
                 )
+                
+                # 🚀 CAMBIO 2: EL CORREGIDO ALFANUMÉRICO DIRECTO EN TU PANTALLA
+                # Cambiamos st.number_input por st.text_input para eliminar las flechas y aceptar letras y guiones
+                nuevo_cod_flor = st.text_input(
+                    "Código de Artículo único (Kame ERP):", 
+                    placeholder="Ej: PB-RA-16", 
+                    key="admin_add_cod_int_alfanumerico"
+                ).strip().upper()
+                
+                nuevo_nom_flor = st.text_input("NOMBRE DE LA VARIEDAD / COLOR COMERCIAL:", placeholder="Ej: Amandine Peach", key="admin_add_nom_str").strip()
+                nuevo_color_hex = st.color_picker("🎨 Seleccione el color visual para el círculo de la tarjeta:", value="#38bdf8", key="admin_add_color_picker")
                 
                 if st.form_submit_button("Registrar Flor en el Catálogo", use_container_width=True):
                     if nuevo_nom_flor and nuevo_cod_flor:
                         try:
-                            # Inyectamos el registro con su color hexadecimal real amarrado
+                            # Forzamos que se inyecte en Firebase estrictamente como Texto (String)
                             db.collection("config_flores").add({
                                 "familia": nueva_familia_libre, 
-                                "codigo": int(nuevo_cod_flor), 
-                                "nombre": nuevo_nom_flor,
+                                "codigo": str(nuevo_cod_flor), 
+                                "nombre": nuevo_nom_flor, 
                                 "color": str(nuevo_color_hex).lower(),
                                 "fecha_creacion": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
                             })
-                            st.success(f"¡Variedad '{nuevo_nom_flor}' registrada con éxito con el color {nuevo_color_hex}!")
-                            st.fragment(lambda: None)
+                            st.success(f"✅ ¡Variedad '{nuevo_nom_flor}' registrada con el código alfanumérico {nuevo_cod_flor}!")
                             st.rerun()
                         except Exception as e: 
                             st.error(f"❌ Error al registrar flor en la nube: {e}")
                     else: 
-                        st.warning("⚠️ El nombre de la variedad es obligatorio.")
-
-
+                        st.warning("⚠️ Todos los campos son obligatorios.")
 
         # ==================================================================
         # F. EXPORTACIÓN ERP Y EMISIÓN DE VALES FORMALES EN TICKET CHILE

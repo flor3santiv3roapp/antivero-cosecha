@@ -662,67 +662,78 @@ if not st.session_state.usuario_conectado:
 
     st.markdown("<h3 style='text-align: center; color: #38bdf8;'>Acceso Cosecha Flores</h3>", unsafe_allow_html=True)
     
-    with st.container(border=True):
-        st.markdown("### Iniciar Sesión")
-        
-        input_usuario = st.text_input(
-            "INGRESA TU RUT O MAIL:", 
-            key="campo_neutro_user",
-            placeholder="Ej: 12345678k"
-        ).strip().lower()
-        
-        # Usamos text_input común (tipo texto plano para el navegador) con clase de enmascaramiento CSS
-        st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
-        input_clave = st.text_input(
-            "CONTRASEÑA DE ACCESO:", 
-            key="campo_neutro_pass",
-            placeholder="••••••••"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.write("")
-        if st.button("Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
-            if input_usuario and input_clave:
-                try:
-                    user_ref = db.collection("usuarios").document(input_usuario).get()
-                    if user_ref.exists and user_ref.to_dict().get("password") == input_clave:
-                        st.session_state.usuario_conectado = True
-                        st.session_state.rol_usuario = user_ref.to_dict().get("rol", "operario")
-                        st.session_state.id_usuario_activo = input_usuario
-                        st.rerun()
-                    else:
-                        st.error("La contraseña o el usuario ingresado son incorrectos.")
-                except Exception as e:
-                    st.error(f"Error de conexión con el servidor de Google: {e}")
-            else:
-                st.warning("Por favor, complete ambos campos.")         
+    @st.fragment
+    def render_login_form():
+        with st.container(border=True):
+            st.markdown("### Iniciar Sesión")
+            
+            input_usuario = st.text_input(
+                "INGRESA TU RUT O MAIL:", 
+                key="campo_neutro_user",
+                placeholder="Ej: 12345678k"
+            ).strip().lower()
+            
+            # Usamos text_input común (tipo texto plano para el navegador) con clase de enmascaramiento CSS
+            st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
+            input_clave = st.text_input(
+                "CONTRASEÑA DE ACCESO:", 
+                key="campo_neutro_pass",
+                placeholder="••••••••"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.write("")
+            if st.button("Ingresar al Sistema", key="btn_auth_login_submit", use_container_width=True, type="primary"):
+                if input_usuario and input_clave:
+                    try:
+                        user_ref = db.collection("usuarios").document(input_usuario).get()
+                        if user_ref.exists and user_ref.to_dict().get("password") == input_clave:
+                            st.session_state.usuario_conectado = True
+                            st.session_state.rol_usuario = user_ref.to_dict().get("rol", "operario")
+                            st.session_state.id_usuario_activo = input_usuario
+                            st.rerun()
+                        else:
+                            st.error("La contraseña o el usuario ingresado son incorrectos.")
+                    except Exception as e:
+                        st.error(f"Error de conexión con el servidor de Google: {e}")
+                else:
+                    st.warning("Por favor, complete ambos campos.")
+
+    render_login_form()
+         
     # ==============================================================
     # RESTAURACIÓN MÁSTER: RECUPERACIÓN DE CLAVES EXTRAS DE TERRENO 
     # ==============================================================
     st.write("---")
-    with st.expander("¿Olvidó su Contraseña o RUT Inválido?", expanded=False):
-        st.caption("Solicite un cambio express. El administrador aprobará su nueva clave desde el Panel de Auditoría.")
-        with st.form("form_recuperacion_express_clave", clear_on_submit=True):
-            rut_olvido = st.text_input(
-                "Ingrese su RUT para Alerta (Sin puntos ni guñón):", 
-                placeholder="Ej: 174031711", 
-                key="recup_rut_input"
-            ).strip().lower()
-            
-            if st.form_submit_button("Enviar Alerta Express de Cambio", use_container_width=True):
-                if rut_olvido and len(rut_olvido) >= 7:
-                    try:
-                        db.collection("solicitudes_clave").document(rut_olvido).set({
-                            "usuario": rut_olvido,
-                            "estado": "pendiente",
-                            "fecha_solicitud": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
-                        })
-                        st.success(f"Alerta enviada con éxito para el RUT {rut_olvido}. Dé aviso al supervisor de turno.")
-                    except Exception as e_sol:
-                        st.error(f"Error al conectar la alerta: {e_sol}")
-                else:
-                    st.warning("Ingrese un RUT válido de campo.")
+    
+    @st.fragment
+    def render_recovery_form():
+        with st.expander("¿Olvidó su Contraseña o RUT Inválido?", expanded=False):
+            st.caption("Solicite un cambio express. El administrador aprobará su nueva clave desde el Panel de Auditoría.")
+            with st.form("form_recuperacion_express_clave", clear_on_submit=True):
+                rut_olvido = st.text_input(
+                    "Ingrese su RUT para Alerta (Sin puntos ni guñón):", 
+                    placeholder="Ej: 174031711", 
+                    key="recup_rut_input"
+                ).strip().lower()
+                
+                if st.form_submit_button("Enviar Alerta Express de Cambio", use_container_width=True):
+                    if rut_olvido and len(rut_olvido) >= 7:
+                        try:
+                            db.collection("solicitudes_clave").document(rut_olvido).set({
+                                "usuario": rut_olvido,
+                                "estado": "pendiente",
+                                "fecha_solicitud": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago"))
+                            })
+                            st.success(f"Alerta enviada con éxito para el RUT {rut_olvido}. Dé aviso al supervisor de turno.")
+                        except Exception as e_sol:
+                            st.error(f"Error al conectar la alerta: {e_sol}")
+                    else:
+                        st.warning("Ingrese un RUT válido de campo.")
+
+    render_recovery_form()
     st.stop()
+
 # ==================================================================
 # 3. INTERFAZ PRINCIPAL (USUARIO AUTENTICADO Y SEGURIZADO)
 # ==================================================================
@@ -731,75 +742,85 @@ with st.sidebar:
     st.markdown(f" **Rol:** `{st.session_state.rol_usuario.upper()}`")
     st.write("---")
     
-    with st.expander(" Cambiar mi Contraseña", expanded=False):
-        with st.form("form_cambio_clave_universal", clear_on_submit=True):
-            nueva_p1 = st.text_input("Nueva Contraseña:", type="password", key="univ_p1")
-            nueva_p2 = st.text_input("Confirmar Contraseña:", type="password", key="univ_p2")
-            if st.form_submit_button("Guardar Nueva Clave", use_container_width=True):
-                if nueva_p1 and nueva_p1 == nueva_p2 and len(nueva_p1) >= 4:
-                    try:
-                        db.collection("usuarios").document(st.session_state.id_usuario_activo).update({"password": nueva_p1})
-                        st.success("¡Contraseña actualizada con éxito!")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                else:
-                    st.error("Las claves no coinciden o tienen menos de 4 caracteres.")
+    @st.fragment
+    def render_sidebar_password_change():
+        with st.expander(" Cambiar mi Contraseña", expanded=False):
+            with st.form("form_cambio_clave_universal", clear_on_submit=True):
+                nueva_p1 = st.text_input("Nueva Contraseña:", type="password", key="univ_p1")
+                nueva_p2 = st.text_input("Confirmar Contraseña:", type="password", key="univ_p2")
+                if st.form_submit_button("Guardar Nueva Clave", use_container_width=True):
+                    if nueva_p1 and nueva_p1 == nueva_p2 and len(nueva_p1) >= 4:
+                        try:
+                            db.collection("usuarios").document(st.session_state.id_usuario_activo).update({"password": nueva_p1})
+                            st.success("¡Contraseña actualizada con éxito!")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                    else:
+                        st.error("Las claves no coinciden o tienen menos de 4 caracteres.")
+
+    render_sidebar_password_change()
 
     if st.session_state.rol_usuario == "admin":
         st.write("---")
         st.markdown("### Herramientas de Administrador")
-        with st.expander(" Registrar Nuevo Operario", expanded=False):
-            with st.form("form_registro_interno_admin", clear_on_submit=True):
-                reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
-                reg_clave = st.text_input("Contraseña inicial:", type="password", key="admin_reg_pass")
-                if st.form_submit_button("Crear Operario", use_container_width=True):
-                    if reg_rut and len(reg_clave) >= 4:
-                        try:
-                            if db.collection("usuarios").document(reg_rut).get().exists:
-                                st.error(" Este RUT ya existe en los registros.")
-                            else:
-                                db.collection("usuarios").document(reg_rut).set({"password": reg_clave, "rol": "operario"})
-                                st.success(f"¡RUT {reg_rut} creado con éxito!")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.warning(" Datos inválidos o clave muy corta.")
-        with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
-            with st.form("form_eliminar_operario", clear_on_submit=True):
-                rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-                confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
-                if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
-                    if rut_a_borrar and confirmar_check:
-                        try:
-                            doc_ref = db.collection("usuarios").document(rut_a_borrar)
-                            if doc_ref.get().exists:
-                                doc_ref.delete()
-                                st.success(f"¡El usuario {rut_a_borrar} fue eliminado!")
-                            else:
-                                st.error("❌ El RUT ingresado no existe.")
-                        except Exception as e:
-                            st.error(f"Error al eliminar: {e}")
-                    else:
-                        st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
+        
+        @st.fragment
+        def render_admin_tools():
+            with st.expander(" Registrar Nuevo Operario", expanded=False):
+                with st.form("form_registro_interno_admin", clear_on_submit=True):
+                    reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
+                    reg_clave = st.text_input("Contraseña inicial:", type="password", key="admin_reg_pass")
+                    if st.form_submit_button("Crear Operario", use_container_width=True):
+                        if reg_rut and len(reg_clave) >= 4:
+                            try:
+                                if db.collection("usuarios").document(reg_rut).get().exists:
+                                    st.error(" Este RUT ya existe en los registros.")
+                                else:
+                                    db.collection("usuarios").document(reg_rut).set({"password": reg_clave, "rol": "operario"})
+                                    st.success(f"¡RUT {reg_rut} creado con éxito!")
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+                        else:
+                            st.warning(" Datos inválidos o clave muy corta.")
+            
+            with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
+                with st.form("form_eliminar_operario", clear_on_submit=True):
+                    rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
+                    confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
+                    if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
+                        if rut_a_borrar and confirmar_check:
+                            try:
+                                doc_ref = db.collection("usuarios").document(rut_a_borrar)
+                                if doc_ref.get().exists:
+                                    doc_ref.delete()
+                                    st.success(f"¡El usuario {rut_a_borrar} fue eliminado!")
+                                else:
+                                    st.error("❌ El RUT ingresado no existe.")
+                            except Exception as e:
+                                st.error(f"Error al eliminar: {e}")
+                        else:
+                            st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
 
-        with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
-            try:
-                solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
-                lista_sol = [s.to_dict() for s in solicitudes]
-                if not lista_sol:
-                    st.caption("No hay alertas pendientes.")
-                else:
-                    for s in lista_sol:
-                        st.warning(f"⚠️ Usuario: {s['usuario']}")
-                        nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
-                        if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
-                            if len(nueva_clave_express) >= 4:
-                                db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
-                                db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
-                                st.success("¡Clave reconfigurada con éxito!")
-                                st.rerun()
-            except Exception as e:
-                st.caption(f"Error al leer alertas: {e}")
+            with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
+                try:
+                    solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
+                    lista_sol = [s.to_dict() for s in solicitudes]
+                    if not lista_sol:
+                        st.caption("No hay alertas pendientes.")
+                    else:
+                        for s in lista_sol:
+                            st.warning(f"⚠️ Usuario: {s['usuario']}")
+                            nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
+                            if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
+                                if len(nueva_clave_express) >= 4:
+                                    db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
+                                    db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
+                                    st.success("¡Clave reconfigurada con éxito!")
+                                    st.rerun()
+                except Exception as e:
+                    st.caption(f"Error al leer alertas: {e}")
+
+        render_admin_tools()
 
     st.write("---")
     if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
@@ -856,51 +877,6 @@ else:
         "📋 Credenciales del Día (Fichas express)"
     ])
     tab_auditoria = None
-    with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
-        with st.form("form_eliminar_operario", clear_on_submit=True):
-            rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
-            confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario SpA.")
-            if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
-                if rut_a_borrar and confirmar_check:
-                    try:
-                        doc_ref = db.collection("usuarios").document(rut_a_borrar)
-                        if doc_ref.get().exists:
-                            doc_ref.delete()
-                            st.success(f"¡El usuario {rut_a_borrar} fue eliminado de FirebaseSpA!")
-                        else:
-                            st.error("❌ El RUT ingresado no existe.")
-                    except Exception as e:
-                        st.error(f"Error al eliminar: {e}")
-                else:
-                    st.warning("⚠️ Debes rellenar el campo y marcar la casilla de confirmación.")
-
-                        
-        with st.expander("🚨 Alertas de Clave Olvidada", expanded=False):
-            try:
-                solicitudes = db.collection("solicitudes_clave").where("estado", "==", "pendiente").stream()
-                lista_sol = [s.to_dict() for s in solicitudes]
-                if not lista_sol:
-                    st.caption("No hay alertas pendientes.")
-                else:
-                    for s in lista_sol:
-                        st.warning(f"⚠️ Usuario: {s['usuario']}")
-                        nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
-                        if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
-                            if len(nueva_clave_express) >= 4:
-                                db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
-                                db.collection("solicitudes_clave").document(s["usuario"]).update({"estado": "resuelto"})
-                                st.success("¡Clave reconfigurada con éxito!")
-                                st.rerun()
-            except Exception as e:
-                st.caption(f"Error al leer alertas: {e}")
-                
-    st.write("---")
-    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
-        st.session_state.usuario_conectado = False
-        st.session_state.rol_usuario = "operario"
-        st.session_state.id_usuario_activo = ""
-        st.rerun()
-
 # ==================================================================
 # ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
 # ==================================================================
@@ -1118,95 +1094,143 @@ with tab_terminal:
     # 🚀 CONTENEDOR 1: División máster horizontal de la pantalla de la tablet
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])
     
-    with col_panel_izq:
-        st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>📌 Lector de Ficha Express</h3>", unsafe_allow_html=True)
-        st.caption("Digite el ID de 3 dígitos (100-200) o use la cámara de la tablet:")
+with col_panel_izq:
+        @st.fragment
+        def fragmento_lector_ficha_express():
+            st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>📌 Lector de Ficha Express</h3>", unsafe_allow_html=True)
+            st.caption("Digite el ID de 3 dígitos (100-200) o use la cámara de la tablet:")
 
-        id_ingresado_fisico = st.text_input(
-            "DIGITE EL ID DIRECTAMENTE AQUÍ...",
-            value="",
-            key="input_id_express_terminal_unico",
-            placeholder="Ej: 101",
-            label_visibility="collapsed"
-        )
+            id_ingresado_fisico = st.text_input(
+                "DIGITE EL ID DIRECTAMENTE AQUÍ...",
+                value="",
+                key="input_id_express_terminal_unico",
+                placeholder="Ej: 101",
+                label_visibility="collapsed"
+            )
 
-        id_filtrado_manual = "".join([c for c in id_ingresado_fisico if c.isdigit()])
-        
-        st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:5px;'>📷 Escáner de Ficha por Cámara:</p>", unsafe_allow_html=True)
-        
-        id_filtrado_camara = ""
-        foto_qr = st.camera_input("Capturar QR", label_visibility="collapsed", key="lector_camara_nativo")
-        
-        if foto_qr is not None:
-            try:
-                from PIL import Image
+            id_filtrado_manual = "".join([c for c in id_ingresado_fisico if c.isdigit()])
+            
+            st.markdown("<p style='color:#94a3b8; font-size:13px; margin-bottom:5px;'>📷 Escáner de Ficha por Cámara:</p>", unsafe_allow_html=True)
+            
+            id_filtrado_camara = ""
+            foto_qr = st.camera_input("Capturar QR", label_visibility="collapsed", key="lector_camara_nativo")
+            
+            if foto_qr is not None:
                 try:
-                    from pyzbar.pyzbar import decode
-                    img = Image.open(foto_qr)
-                    resultados = decode(img)
-                    if resultados:
-                        texto_qr = resultados[0].data.decode("utf-8")
-                        id_filtrado_camara = "".join([c for c in texto_qr if c.isdigit()])
-                except ImportError:
-                    import cv2
-                    import numpy as np
-                    file_bytes = np.asarray(bytearray(foto_qr.read()), dtype=np.uint8)
-                    opencv_img = cv2.imdecode(file_bytes, 1)
-                    detector = cv2.QRCodeDetector()
-                    texto_qr, _, _ = detector.detectAndDecode(opencv_img)
-                    if texto_qr:
-                        id_filtrado_camara = "".join([c for c in texto_qr if c.isdigit()])
-            except Exception as e_cam:
-                st.caption(f"Ajustando enfoque de cámara... ({e_cam})")
+                    from PIL import Image
+                    try:
+                        from pyzbar.pyzbar import decode
+                        img = Image.open(foto_qr)
+                        resultados = decode(img)
+                        if resultados:
+                            texto_qr = resultados[0].data.decode("utf-8")
+                            id_filtrado_camara = "".join([c for c in texto_qr if c.isdigit()])
+                    except ImportError:
+                        import cv2
+                        import numpy as np
+                        file_bytes = np.asarray(bytearray(foto_qr.read()), dtype=np.uint8)
+                        opencv_img = cv2.imdecode(file_bytes, 1)
+                        detector = cv2.QRCodeDetector()
+                        texto_qr, _, _ = detector.detectAndDecode(opencv_img)
+                        if texto_qr:
+                            id_filtrado_camara = "".join([c for c in texto_qr if c.isdigit()])
+                except Exception as e_cam:
+                    st.caption(f"Ajustando enfoque de cámara... ({e_cam})")
 
-        id_final_a_procesar = id_filtrado_camara if id_filtrado_camara else id_filtrado_manual
-        id_visible = f"#{id_final_a_procesar}" if id_final_a_procesar else "#---"
-        
-        st.markdown(
-            f'<div style="color: #38bdf8; font-weight: bold; border: 1px solid #334155; '
-            f'border-radius: 8px; padding: 12px; font-size: 26px; text-align: center; '
-            f'background-color: #1e293b; margin-bottom: 15px;">{id_visible}</div>', 
-            unsafe_allow_html=True
-        )
+            id_final_a_procesar = id_filtrado_camara if id_filtrado_camara else id_filtrado_manual
+            id_visible = f"#{id_final_a_procesar}" if id_final_a_procesar else "#---"
+            
+            st.markdown(
+                f'<div style="color: #38bdf8; font-weight: bold; border: 1px solid #334155; '
+                f'border-radius: 8px; padding: 12px; font-size: 26px; text-align: center; '
+                f'background-color: #1e293b; margin-bottom: 15px;">{id_visible}</div>', 
+                unsafe_allow_html=True
+            )
 
-        if id_final_a_procesar and len(id_final_a_procesar) >= 3:
-            if st.session_state.get("id_express_cosecha", "") != str(id_final_a_procesar):
-                try:
-                    id_num = int(id_final_a_procesar)
-                    if 100 <= id_num <= 250:
-                        import datetime
-                        import zoneinfo
-                        
-                        tz_cl = zoneinfo.ZoneInfo("America/Santiago")
-                        fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
-                        
-                        doc_ref = db.collection("credenciales_activas_dia").document(str(id_num)).get()
-                        
-                        if doc_ref.exists:
-                            datos_operario = doc_ref.to_dict()
+            if id_final_a_procesar and len(id_final_a_procesar) >= 3:
+                if st.session_state.get("id_express_cosecha", "") != str(id_final_a_procesar):
+                    try:
+                        id_num = int(id_final_a_procesar)
+                        if 100 <= id_num <= 250:
+                            import datetime
+                            import zoneinfo
                             
-                            if datos_operario.get("FechaFiltro") == fecha_hoy_str:
-                                rut_raw = datos_operario.get("RutCosechador", "")
-                                rut_encontrado = str(rut_raw).strip().upper()
+                            tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+                            fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+                            
+                            doc_ref = db.collection("credenciales_activas_dia").document(str(id_num)).get()
+                            
+                            if doc_ref.exists:
+                                datos_operario = doc_ref.to_dict()
                                 
-                                cc_encontrado = datos_operario.get("CentroCosto", "CC_TERRENO")
-                                contratista_encontrado = datos_operario.get("Contratista", "INDEPENDIENTE")
+                                if datos_operario.get("FechaFiltro") == fecha_hoy_str:
+                                    rut_raw = datos_operario.get("RutCosechador", "")
+                                    rut_encontrado = str(rut_raw).strip().upper()
+                                    
+                                    cc_encontrado = datos_operario.get("CentroCosto", "CC_TERRENO")
+                                    contratista_encontrado = datos_operario.get("Contratista", "INDEPENDIENTE")
 
-                                st.session_state.rut_cosechador = rut_encontrado
-                                st.session_state.id_express_cosecha = str(id_num)
-                                st.session_state.cc_activo_meson = str(cc_encontrado)
-                                st.session_state.contratista_activo_meson = str(contratista_encontrado)
-                                
-                                st.session_state.rut_bloqueado_operacion = False
-                                bloqueo_activo = False
-                                st.toast(f"✅ Ficha #{id_num} cargada con éxito.", icon="👤")
-                                st.rerun()
+                                    st.session_state.rut_cosechador = rut_encontrado
+                                    st.session_state.id_express_cosecha = str(id_num)
+                                    st.session_state.cc_activo_meson = str(cc_encontrado)
+                                    st.session_state.contratista_activo_meson = str(contratista_encontrado)
+                                    
+                                    st.session_state.rut_bloqueado_operacion = False
+                                    st.toast(f"✅ Ficha #{id_num} cargada con éxito.", icon="👤")
+                                    st.rerun()
+                                else:
+                                    st.error("🛑 Ficha pertenece a una fecha anterior.")
                             else:
-                                st.error("🛑 Ficha pertenece a una fecha anterior.")
-                        else:
-                            st.error("⚠️ Ficha Express no registrada en el día.")
-                except Exception as e:
-                    st.error(f"Error en validación: {e}")
+                                st.error("⚠️ Ficha Express no registrada en el día.")
+                    except Exception as e:
+                        st.error(f"Error en validación: {e}")
+
+        fragmento_lector_ficha_express()
+
+        # --- BOTONES DE MERMA BAJO EL LECTOR DE LA FICHA EXPRESS ---
+        st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
+        st.markdown("<h4 style='margin:0 0 5px 0; color:#f87171;'>🗑️ Registro de Mermas</h4>", unsafe_allow_html=True)
+        st.caption("Seleccione una merma para reemplazar la flor en el mesón:")
+
+        tiene_rut_merma = st.session_state.get("rut_cosechador", "") != ""
+
+        try:
+            mermas_docs = db.collection("merma").stream()
+            lista_mermas_db = [doc.to_dict() for doc in mermas_docs]
+        except Exception:
+            lista_mermas_db = []
+
+        if not lista_mermas_db:
+            lista_mermas_db = [
+                {"codigo": "M01", "merma": "Merma por Calidad"},
+                {"codigo": "M02", "merma": "Merma por Rotura"}
+            ]
+
+        for i in range(0, len(lista_mermas_db), 2):
+            par_mermas = lista_mermas_db[i:i+2]
+            cols_m = st.columns(2)
+            for idx_m, m_item in enumerate(par_mermas):
+                idx_abs_m = i + idx_m
+                with cols_m[idx_m]:
+                    cod_m = m_item.get("codigo", "M00")
+                    nom_m = m_item.get("merma", "Merma General")
+                    
+                    st.html(f"""
+                    <div style="background-color: #2a1b1b; border: 1px solid #7f1d1d; border-radius: 10px; padding: 10px 12px; margin-bottom: 4px; border-left: 6px solid #ef4444;">
+                        <div style="color: #fca5a5; font-size: 14px; font-weight: bold; font-family: system-ui, -apple-system, sans-serif;">{nom_m}</div>
+                        <div style="color: #94a3b8; font-size: 11px; font-family: system-ui, -apple-system, sans-serif;">Cód. Merma: {cod_m}</div>
+                    </div>
+                    """)
+
+                    if st.button(f"Seleccionar {nom_m}", key=f"btn_merma_express_{cod_m}_{idx_abs_m}", use_container_width=True, disabled=not tiene_rut_merma):
+                        st.session_state.flor_seleccionada_meson = {
+                            "codigo": cod_m, 
+                            "nombre": f"Merma: {nom_m}", 
+                            "color": "#ef4444",
+                            "es_merma": True
+                        }
+                        st.session_state.cantidad_varas_meson = 30
+                        st.rerun()
         
 with col_panel_central_derecho:
         if "flor_seleccionada_meson" not in st.session_state: 
@@ -1270,7 +1294,7 @@ with col_centro_flujo:
                         
                         # 2. Botón limpio para seleccionar la variedad
                         if st.button(f"Seleccionar {nom_f}", key=f"btn_var_real_{cod_f}_{indice_absoluto}", use_container_width=True, disabled=not tiene_rut):
-                            st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f, "color": color_real}
+                            st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f, "color": color_real, "es_merma": False}
                             st.session_state.cantidad_varas_meson = 30
                             st.rerun()
 
@@ -1293,9 +1317,9 @@ with col_derecha_consolidacion:
         if st.session_state.flor_seleccionada_meson:
             f_sel = st.session_state.flor_seleccionada_meson
             color_meson = f_sel.get("color", "#38bdf8")
-            st.markdown(f"**Flor:** <span style='color:{color_meson}; font-weight:bold;'>● {f_sel['nombre']}</span>", unsafe_allow_html=True)
+            st.markdown(f"**Item:** <span style='color:{color_meson}; font-weight:bold;'>● {f_sel['nombre']}</span>", unsafe_allow_html=True)
         else:
-            st.markdown("**Flor:** <span style='color:#94a3b8; font-weight:bold;'>Ninguna</span>", unsafe_allow_html=True)
+            st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
                 
         st.caption("⚙️ Edita varas:")
                 
@@ -1342,14 +1366,12 @@ with col_derecha_consolidacion:
                 cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
                 contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
                         
-                        # B. Buscamos el CÓDIGO real del Centro de Costo en Firestore
+                # B. Buscamos el CÓDIGO real del Centro de Costo en Firestore
                 codigo_cc_real = "n/a"
                 try:
-                    # Buscamos en la colección config_centros_costo
                     cc_docs = db.collection("config_centros_costo").stream()
                     for doc in cc_docs:
                         d_cc = doc.to_dict()
-                        # Si coincide el nombre (sin importar minúsculas/mayúsculas para comparar)
                         if str(d_cc.get("nombre", "")).strip().lower() == cc_nombre.strip().lower():
                             codigo_cc_real = d_cc.get("codigo", "n/a")
                             break
@@ -1370,15 +1392,23 @@ with col_derecha_consolidacion:
                 except Exception:
                     pass
 
-                        # D. Recuperamos datos de la Flor (respetando sus nombres originales tal cual)
-                familia_final = st.session_state.get("familia_activa_meson", "Delphinium Guardian")
-                variedad_final = st.session_state.flor_seleccionada_meson["nombre"]
-                codigo_articulo = str(st.session_state.flor_seleccionada_meson["codigo"])
+                # D. Verificamos si es merma o flor normal
+                item_seleccionado = st.session_state.flor_seleccionada_meson
+                es_merma_actual = item_seleccionado.get("es_merma", False)
+
+                if es_merma_actual:
+                    familia_final = "Merma"
+                    variedad_final = item_seleccionado["nombre"].replace("Merma: ", "")
+                    codigo_articulo = str(item_seleccionado["codigo"])
+                else:
+                    familia_final = st.session_state.get("familia_activa_meson", "Delphinium Guardian")
+                    variedad_final = item_seleccionado["nombre"]
+                    codigo_articulo = str(item_seleccionado["codigo"])
                         
-                        # E. Envío estructurado: Categorías en MINÚSCULA y datos intactos
+                # E. Envío estructurado a Firestore incluyendo es_merma
                 db.collection("cosecha_diaria").add({
                     "fecha_registro": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago")),
-                    "rut_cosechador": st.session_state.rut_cosechador.upper(), # RUT siempre en mayúscula
+                    "rut_cosechador": st.session_state.rut_cosechador.upper(),
 
                     "contratista_nombre": contratista_nombre,
                     "rut_contratista": rut_contratista_real,
@@ -1391,7 +1421,8 @@ with col_derecha_consolidacion:
                     "variedad_flor": variedad_final,
                     "codigo_flor": codigo_articulo,
                             
-                    "cantidad_varas": int(st.session_state.cantidad_varas_meson)
+                    "cantidad_varas": int(st.session_state.cantidad_varas_meson),
+                    "es_merma": bool(es_merma_actual)
                 })
                         
                 st.success("✅ ¡Inyectado con éxito con formato estandarizado!")
@@ -1404,86 +1435,94 @@ with col_derecha_consolidacion:
                 st.session_state.cc_activo_meson = ""
                 st.session_state.contratista_activo_meson = ""
                 st.session_state.rut_bloqueado_operacion = True
+                
+                # Limpiamos caché del historial para forzar actualización automática instantánea
+                if "lista_datos_dia_cache" in st.session_state:
+                    del st.session_state["lista_datos_dia_cache"]
+
                 st.rerun()
             except Exception as e: 
                 st.error(f"Error al inyectar datos: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
-                # EJEMPLO: Justo después de guardar con éxito en la base de datos:
 
 
 # Historial Diario de Terreno
         st.write("")
         st.markdown("<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>", unsafe_allow_html=True)
         
-        # ⚡ Si la lista está vacía en caché, intentamos consultar Firestore directamente una vez para inicializarla
-        if "lista_datos_dia_cache" not in st.session_state or not st.session_state["lista_datos_dia_cache"]:
-            try:
-                import datetime
-                import zoneinfo
-                tz_local = zoneinfo.ZoneInfo("America/Santiago")
-                hoy = datetime.date.today()
-                inicio_hoy = datetime.datetime.combine(hoy, datetime.time.min, tzinfo=tz_local)
-                fin_hoy = datetime.datetime.combine(hoy, datetime.time.max, tzinfo=tz_local)
-                
-                # Consultamos los documentos del día
-                docs_hoy = db.collection("cosecha_diaria")\
-                             .where("fecha_registro", ">=", inicio_hoy)\
-                             .where("fecha_registro", "<=", fin_hoy)\
-                             .stream()
-                
-                st.session_state["lista_datos_dia_cache"] = [doc.to_dict() for doc in docs_hoy]
-            except Exception as e_carga:
-                st.session_state["lista_datos_dia_cache"] = []
+        @st.fragment
+        def fragmento_historial_dia_terreno():
+            # ⚡ Si la lista está vacía en caché, intentamos consultar Firestore directamente una vez para inicializarla
+            if "lista_datos_dia_cache" not in st.session_state or not st.session_state["lista_datos_dia_cache"]:
+                try:
+                    import datetime
+                    import zoneinfo
+                    tz_local = zoneinfo.ZoneInfo("America/Santiago")
+                    hoy = datetime.date.today()
+                    inicio_hoy = datetime.datetime.combine(hoy, datetime.time.min, tzinfo=tz_local)
+                    fin_hoy = datetime.datetime.combine(hoy, datetime.time.max, tzinfo=tz_local)
+                    
+                    docs_hoy = db.collection("cosecha_diaria")\
+                               .where("fecha_registro", ">=", inicio_hoy)\
+                               .where("fecha_registro", "<=", fin_hoy)\
+                               .stream()
+                    
+                    st.session_state["lista_datos_dia_cache"] = [doc.to_dict() for doc in docs_hoy]
+                except Exception as e_carga:
+                    st.session_state["lista_datos_dia_cache"] = []
 
-        lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
-        
-        if lista_operario_real:
-            try:
-                df_op = pd.DataFrame(lista_operario_real)
-                
-                # Mapeamos columnas antiguas/nuevas para asegurar compatibilidad
-                col_rut = "rut_cosechador" if "rut_cosechador" in df_op.columns else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
-                col_familia = "familia_flor" if "familia_flor" in df_op.columns else None
-                col_variedad = "variedad_flor" if "variedad_flor" in df_op.columns else ("DescripcionArticulo" if "DescripcionArticulo" in df_op.columns else None)
-                col_varas = "cantidad_varas" if "cantidad_varas" in df_op.columns else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
-                
-                if col_rut and col_variedad and col_varas:
-                    import __main__ as main
+            lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
+            
+            if lista_operario_real:
+                try:
+                    df_op = pd.DataFrame(lista_operario_real)
                     
-                    # Formateamos el RUT si la función existe
-                    if hasattr(main, "formatear_rut_chileno_completo"):
-                        df_op[col_rut] = df_op[col_rut].apply(lambda x: main.formatear_rut_chileno_completo(x) if pd.notnull(x) else x)
+                    col_rut = "rut_cosechador" if "rut_cosechador" in df_op.columns else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
+                    col_familia = "familia_flor" if "familia_flor" in df_op.columns else None
+                    col_variedad = "variedad_flor" if "variedad_flor" in df_op.columns else ("DescripcionArticulo" if "DescripcionArticulo" in df_op.columns else None)
+                    col_varas = "cantidad_varas" if "cantidad_varas" in df_op.columns else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
+                    col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
                     
-                    # Definimos la agrupación dinámica incluyendo la familia si existe
-                    agrupadores = [col_rut]
-                    if col_familia and col_familia in df_op.columns:
-                        agrupadores.append(col_familia)
-                    agrupadores.append(col_variedad)
-                    
-                    # Agrupamos y sumamos las varas
-                    df_op_render = df_op.groupby(agrupadores, as_index=False)[col_varas].sum()
-                    
-                    # Renombramos las columnas del DataFrame para que se vean bonitas y profesionales en el panel
-                    renombre_columnas = {
-                        col_rut: "RUT Cosechador",
-                        col_variedad: "Variedad",
-                        col_varas: "Cantidad Varas"
-                    }
-                    if col_familia:
-                        renombre_columnas[col_familia] = "Familia"
+                    if col_rut and col_variedad and col_varas:
+                        import __main__ as main
                         
-                    df_op_render = df_op_render.rename(columns=renombre_columnas)
-                    
-                    # Mostramos la tabla limpia en pantalla
-                    st.dataframe(df_op_render, use_container_width=True, hide_index=True)
-                else:
-                    st.warning("⚠️ No se encontraron las columnas esperadas en los datos del servidor.")
-                    
-            except Exception as e_tabla:
-                st.caption(f"⚠️ Nota de visualización: {e_tabla}")
-        else:
-            st.info("📝 No hay registros cargados hoy en este mesón.")
-# --- CONTENIDO DE LA PESTAÑA C: PANEL DE CONTROL Y AUDITORÍA ---
+                        if hasattr(main, "formatear_rut_chileno_completo"):
+                            df_op[col_rut] = df_op[col_rut].apply(lambda x: main.formatear_rut_chileno_completo(x) if pd.notnull(x) else x)
+                        
+                        agrupadores = [col_rut]
+                        if col_familia and col_familia in df_op.columns:
+                            agrupadores.append(col_familia)
+                        agrupadores.append(col_variedad)
+                        if col_es_merma and col_es_merma in df_op.columns:
+                            agrupadores.append(col_es_merma)
+                        
+                        df_op_render = df_op.groupby(agrupadores, as_index=False)[col_varas].sum()
+                        
+                        renombre_columnas = {
+                            col_rut: "RUT Cosechador",
+                            col_variedad: "Variedad / Detalle",
+                            col_varas: "Cantidad Varas"
+                        }
+                        if col_familia:
+                            renombre_columnas[col_familia] = "Familia"
+                        if col_es_merma:
+                            renombre_columnas[col_es_merma] = "¿Es Merma?"
+                            
+                        df_op_render = df_op_render.rename(columns=renombre_columnas)
+                        
+                        st.dataframe(df_op_render, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning("⚠️ No se encontraron las columnas esperadas en los datos del servidor.")
+                        
+                except Exception as e_tabla:
+                    st.caption(f"⚠️ Nota de visualización: {e_tabla}")
+            else:
+                st.info("📝 No hay registros cargados hoy en este mesón.")
+
+        fragmento_historial_dia_terreno()
+
+# Pestaña C: Panel de Control y Auditoría (Actualizado)
+
 with tab_auditoria:
     st.markdown("<h3 style='color:#38bdf8;'>🔍 Panel de Auditoría y Control de Registros</h3>", unsafe_allow_html=True)
     st.caption("Espacio exclusivo para administradores. Filtre, edite directamente en la tabla y guarde las correcciones en Google Firebase.")
@@ -1524,6 +1563,9 @@ with tab_auditoria:
     with col_f4:
         filtro_rut_cosechador = st.text_input("🔍 RUT COSECHADOR:", placeholder="Ej: 123456789", key="input_rut_audit")
         filtro_rut = filtro_rut_cosechador
+        
+        # Opciones para filtrar por merma en el Panel de Auditoría
+        filtro_tipo_registro = st.selectbox("📋 TIPO DE REGISTRO:", options=["Todos", "Solo Producción", "Solo Merma"], key="select_tipo_registro_auditoria")
 
     # 2. El Botón de Ejecutar Búsqueda en la Nube
     if st.button("🚀 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_nube"):
@@ -1566,27 +1608,37 @@ with tab_auditoria:
                     rut_buscado_limpio = filtro_rut_cosechador.strip().replace(".", "").replace("-", "").lower()
                     if "rut_cosechador" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["rut_cosechador"].str.replace("-", "").str.lower() == rut_buscado_limpio]
+                
+                if filtro_tipo_registro == "Solo Merma":
+                    if "es_merma" in df_auditoria.columns:
+                        df_auditoria = df_auditoria[df_auditoria["es_merma"] == True]
+                    else:
+                        df_auditoria = df_auditoria.iloc[0:0]
+                elif filtro_tipo_registro == "Solo Producción":
+                    if "es_merma" in df_auditoria.columns:
+                        df_auditoria = df_auditoria[(df_auditoria["es_merma"] == False) | (df_auditoria["es_merma"].isna())]
 
                 if not df_auditoria.empty:
                     if "fecha_registro" in df_auditoria.columns:
                         try:
-                            df_auditoria["fecha"] = pd.to_datetime(df_auditoria["fecha_registro"]).dt.strftime('%d-%m-%Y %H:%M:%S')
+                            df_auditoria["fecha"] = pd.to_datetime(df_auditoria["fecha_registro"]).dt.strftime('%d/%b/%Y')
                         except:
                             df_auditoria["fecha"] = df_auditoria["fecha_registro"]
                     else:
                         df_auditoria["fecha"] = ""
 
-                    # Formateo visual para el editor
-                    df_auditoria["rut cosechero"] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
+                    # Formateo visual con nombres compactos
+                    df_auditoria["rut operario"] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
                     df_auditoria["contratista"] = df_auditoria.get("contratista_nombre", "n/a")
                     df_auditoria["rut contratista"] = df_auditoria.get("rut_contratista", "0-0")
-                    df_auditoria["código contratista"] = df_auditoria.get("codigo_contratista", "n/a")
+                    df_auditoria["cód. contratista"] = df_auditoria.get("codigo_contratista", "n/a")
                     df_auditoria["centro de costo"] = df_auditoria.get("centro_costo", "n/a")
-                    df_auditoria["codigo centro de costo"] = df_auditoria.get("codigo_centro_costo", "n/a")
+                    df_auditoria["cód. c. costo"] = df_auditoria.get("codigo_centro_costo", "n/a")
                     df_auditoria["familia flor"] = df_auditoria.get("familia_flor", "n/a")
-                    df_auditoria["variedad flor"] = df_auditoria.get("variedad_flor", "n/a")
-                    df_auditoria["codigo flor"] = df_auditoria.get("codigo_flor", "n/a")
-                    df_auditoria["cantidad varas"] = df_auditoria.get("cantidad_varas", 0).astype(int)
+                    df_auditoria["variedad"] = df_auditoria.get("variedad_flor", "n/a")
+                    df_auditoria["cód. flor"] = df_auditoria.get("codigo_flor", "n/a")
+                    df_auditoria["varas"] = df_auditoria.get("cantidad_varas", 0).astype(int)
+                    df_auditoria["es_merma_bool"] = df_auditoria.get("es_merma", False)
 
                     # 💾 GUARDAMOS EL RESULTADO EN MEMORIA DE SESIÓN
                     st.session_state["df_auditoria_activo"] = df_auditoria
@@ -1600,14 +1652,15 @@ with tab_auditoria:
         except Exception as e_error_auditoria:
             st.error(f"❌ Error en consulta Firebase: {e_error_auditoria}")
 
-    # 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS
+    # 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS (SIN MOSTRAR EL ID DE FIREBASE NI ES_MERMA_BOOL)
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
         
+        # ⚠️ Quitamos "id_documento_firebase" y "es_merma_bool" para que la tabla no los muestre visualmente
         columnas_vista = [
-            "id_documento_firebase", "fecha", "rut cosechero", "contratista", "rut contratista", 
-            "código contratista", "centro de costo", "codigo centro de costo", 
-            "familia flor", "variedad flor", "codigo flor", "cantidad varas"
+            "fecha", "rut operario", "contratista", "rut contratista", 
+            "cód. contratista", "centro de costo", "cód. c. costo", 
+            "familia flor", "variedad", "cód. flor", "varas"
         ]
         
         cols_presentes = [c for c in columnas_vista if c in df_ver.columns]
@@ -1615,17 +1668,18 @@ with tab_auditoria:
         st.markdown("---")
         st.info("✏️ **Modo Edición Activado:** Haz doble clic sobre cualquier celda de la tabla inferior para modificar sus valores. Al terminar, presiona el botón de guardar para actualizar la base de datos en la nube.")
         
-        df_editado = st.data_editor(
+        # Pasamos el dataframe filtrado a la vista (el id de firebase y es_merma_bool siguen estando en df_ver por debajo)
+        df_editado_vista = st.data_editor(
             df_ver[cols_presentes], 
             use_container_width=True, 
             hide_index=True,
-            disabled=["id_documento_firebase", "fecha"], 
+            disabled=["fecha"], 
             key="editor_tabla_auditoria"
         )
         
         col_metrica, col_guardar_cambios = st.columns([2, 1])
         with col_metrica:
-            total_v = df_editado["cantidad varas"].sum()
+            total_v = df_editado_vista["varas"].sum()
             st.metric(label="Suma Total de Varas (Editadas)", value=f"{total_v} varas")
             
         with col_guardar_cambios:
@@ -1633,30 +1687,35 @@ with tab_auditoria:
             if st.button("💾 Guardar Cambios en Firebase", type="primary", use_container_width=True, key="btn_guardar_cambios_firebase"):
                 try:
                     barra_progreso = st.progress(0, text="Sincronizando cambios con la nube...")
-                    total_filas = len(df_editado)
+                    total_filas = len(df_editado_vista)
                     
-                    for idx, row in df_editado.iterrows():
-                        doc_id = row.get("id_documento_firebase")
+                    for idx, row in df_editado_vista.iterrows():
+                        # Recuperamos el ID oculto y es_merma_bool original utilizando el índice de la fila
+                        doc_id = df_ver.iloc[idx].get("id_documento_firebase")
+                        merma_original = bool(df_ver.iloc[idx].get("es_merma_bool", False))
                         
                         if doc_id:
                             datos_actualizados = {
-                                "rut_cosechador": str(row.get("rut cosechero", "")).strip().upper(),
+                                "rut_cosechador": str(row.get("rut operario", "")).strip().upper(),
                                 "contratista_nombre": str(row.get("contratista", "")).strip(),
                                 "rut_contratista": str(row.get("rut contratista", "")).strip(),
-                                "codigo_contratista": str(row.get("código contratista", "")).strip(),
+                                "codigo_contratista": str(row.get("cód. contratista", "")).strip(),
                                 "centro_costo": str(row.get("centro de costo", "")).strip(),
-                                "codigo_centro_costo": str(row.get("codigo centro de costo", "")).strip(),
+                                "codigo_centro_costo": str(row.get("cód. c. costo", "")).strip(),
                                 "familia_flor": str(row.get("familia flor", "")).strip(),
-                                "variedad_flor": str(row.get("variedad flor", "")).strip(),
-                                "codigo_flor": str(row.get("codigo flor", "")).strip(),
-                                "cantidad_varas": int(row.get("cantidad varas", 0))
+                                "variedad_flor": str(row.get("variedad", "")).strip(),
+                                "codigo_flor": str(row.get("cód. flor", "")).strip(),
+                                "cantidad_varas": int(row.get("varas", 0)),
+                                "es_merma": merma_original
                             }
                             db.collection("cosecha_diaria").document(doc_id).update(datos_actualizados)
                         
                         progreso = int(((idx + 1) / total_filas) * 100)
                         barra_progreso.progress(progreso, text=f"Actualizando registro {idx + 1} de {total_filas}...")
                     
-                    st.session_state["df_auditoria_activo"] = df_editado
+                    # Actualizamos el estado interno combinando la vista editada con los IDs ocultos
+                    df_ver.update(df_editado_vista)
+                    st.session_state["df_auditoria_activo"] = df_ver
                     st.success("✅ ¡Todos los cambios fueron guardados y sincronizados correctamente en Firebase!")
                     st.rerun()
                     
@@ -1694,154 +1753,177 @@ with tab_auditoria:
             except Exception as e: st.error(f"Error: {e}")
 
     with col_admin_vale:
-            st.markdown("### Opciones de Impresión")
+        st.markdown("### Opciones de Impresión")
         
-            if "html_vale_actual" not in st.session_state: 
-                st.session_state.html_vale_actual = ""
+        if "html_vale_actual" not in st.session_state: 
+            st.session_state.html_vale_actual = ""
         
-# 1. Botón para cargar / refrescar los datos del vale desde la tabla activa
-            if st.button("🔄 Cargar / Actualizar Datos del Vale", key="btn_vale_process", use_container_width=True):
-                try:
-                    if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
-                        df_fuente = st.session_state["df_auditoria_activo"]
-                    
-                        df_vale = df_fuente.groupby(["rut cosechero", "familia flor", "variedad flor"], as_index=False)["cantidad varas"].sum()
-                    
-                        # 🧠 Lógica inteligente para evaluar si los campos son únicos o múltiples/abiertos
-                        fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
-                        if len(fechas_unicas) == 1:
-                            str_fecha = pd.to_datetime(fechas_unicas[0]).strftime('%d/%b/%Y')
-                        else:
-                            str_fecha = "Todas las fechas"
-                        
-                        ccs_unicos = df_fuente["centro de costo"].unique() if "centro de costo" in df_fuente.columns else []
-                        str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
-
-                        b2b_unicos = df_fuente["contratista"].unique() if "contratista" in df_fuente.columns else []
-                        str_empresa = b2b_unicos[0] if len(b2b_unicos) == 1 else "Todas las empresas"
-                    
-                        ruts_unicos = df_fuente["rut cosechero"].unique() if "rut cosechero" in df_fuente.columns else []
-                        str_cosechador = ruts_unicos[0] if len(ruts_unicos) == 1 else f"Varios operarios ({len(ruts_unicos)})"
-                    
-                        filas_html = "".join([
-                            f"<tr><td style='padding:4px;'>{r['familia flor']} - {r['variedad flor']}</td><td style='text-align:right; font-weight:bold;'>{r['cantidad varas']}</td></tr>" 
-                            for _, r in df_vale.iterrows()
-                        ])
-                    
-                        st.session_state.html_vale_actual = f"""
-                        <style>
-                            @media print {{
-                                @page {{
-                                    size: portrait;
-                                    margin: 0;
-                                }}
-                                html, body {{
-                                    background-color: #ffffff !important;
-                                    background: #ffffff !important;
-                                    width: 100% !important;
-                                    height: 100% !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                    overflow: hidden !important;
-                                }}
-                                body * {{
-                                    visibility: hidden !important;
-                                }}
-                                #printable-wrapper, #printable-wrapper * {{
-                                    visibility: visible !important;
-                                }}
-                                #printable-wrapper {{
-                                    position: fixed !important;
-                                    left: 0px !important;
-                                    top: 0px !important;
-                                    width: 100% !important;
-                                    height: auto !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                    background-color: #ffffff !important;
-                                    z-index: 999999 !important;
-                                }}
-                                #printable-voucher {{
-                                    margin: 10px !important;
-                                    page-break-before: avoid !important;
-                                    page-break-after: avoid !important;
-                                    page-break-inside: avoid !important;
-                                    break-before: avoid !important;
-                                    break-after: avoid !important;
-                                    break-inside: avoid !important;
-                                }}
-                            }}
-                        </style>
-                        <div id='printable-wrapper'>
-                            <div id='printable-voucher' style='background-color:white; color:black; padding:15px; font-family:monospace; border:1px solid #ccc; max-width: 380px;'>
-                                <h3 style='text-align:center; margin:0; color:black;'>FLORES ANTIVERO</h3>
-                                <p style='text-align:center; margin:5px 0; font-size:12px; color:black;'>COMPROBANTE DE COSECHA DIARIA</p>
-                                <hr style='border-top:1px dashed black;'>
-                                <p style='margin:3px 0; color:black;'><b>Fecha:</b> {str_fecha}</p>
-                                <p style='margin:3px 0; color:black;'><b>Origen:</b> {str_origen}</p>
-                                <p style='margin:3px 0; color:black;'><b>Empresa:</b> {str_empresa}</p>
-                                <p style='margin:3px 0; color:black;'><b>Cosechador:</b> {str_cosechador}</p>
-                                <hr style='border-top:1px dashed black;'>
-                                <table style='width:100%; border-collapse:collapse; color:black;'>
-                                   <thead><tr><th style='text-align:left;'>Variedad</th><th style='text-align:right;'>Varas</th></tr></thead>
-                                   <tbody>{filas_html}</tbody>
-                                </table>
-                                <hr style='border-top:1px dashed black;'>
-                                <h3 style='display:flex; justify-content:space-between; margin:0; color:black;'><span>TOTAL:</span> <span>{df_vale['cantidad varas'].sum()} Varas</span></h3>
-                            </div>
-                        </div>"""
-                        st.success("✅ Datos cargados correctamente para imprimir.")
+        # 1. Botón para cargar / refrescar los datos del vale desde la tabla activa
+        if st.button("🔄 Cargar / Actualizar Datos del Vale", key="btn_vale_process", use_container_width=True):
+            try:
+                if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
+                    df_fuente = st.session_state["df_auditoria_activo"]
+                
+                    # 🌸 Separamos flores de producción (es_merma_bool == False / NaN) y mermas (es_merma_bool == True)
+                    if "es_merma_bool" in df_fuente.columns:
+                        df_flores_prod = df_fuente[df_fuente["es_merma_bool"] != True]
+                        df_flores_mermas = df_fuente[df_fuente["es_merma_bool"] == True]
                     else:
-                        st.warning("⚠️ No existen registros en la tabla. Ejecuta la búsqueda primero.")
-                        st.session_state.html_vale_actual = ""
-                except Exception as e: 
-                    st.error(f"Error: {e}")
+                        df_flores_prod = df_fuente
+                        df_flores_mermas = pd.DataFrame(columns=df_fuente.columns)
 
-            # 2. Botón de Impresión Directa (Zebra) - Estilizado unificado
-            if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_impresion_directa_zebra", use_container_width=True, type="primary"):
-                st.info("⚡ Enviando directamente a la impresora ZPL (Zebra)...")
+                    df_vale_prod = df_flores_prod.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
+                    df_vale_merma = df_flores_mermas.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
+                
+                    # 🧠 Lógica inteligente para evaluar si los campos son únicos o múltiples/abiertos
+                    fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
+                    if len(fechas_unicas) == 1:
+                        str_fecha = str(fechas_unicas[0])
+                    else:
+                        str_fecha = "Todas las fechas"
+                    
+                    ccs_unicos = df_fuente["centro de costo"].unique() if "centro de costo" in df_fuente.columns else []
+                    str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
 
-            # 3. Botón de Windows unificado con diseño idéntico a los demás componentes
-            if st.session_state.html_vale_actual != "":
-                components.html("""
-                <div style="font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace; width: 100%; margin-top: 0px;">
-                    <button onclick="window.parent.print();" style="
-                        background-color: rgb(14, 17, 23); 
-                        color: rgb(250, 250, 250); 
-                        border: 1px solid rgb(48, 54, 61); 
-                        padding: 0.5rem 1rem; 
-                        font-size: 14px; 
-                        font-weight: 400; 
-                        border-radius: 0.5rem; 
-                        cursor: pointer; 
-                        width: 100%;
-                        text-align: center;
-                        display: inline-flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 8px;
-                        box-sizing: border-box;
-                        font-family: inherit;
-                    " onmouseover="this.style.borderColor='rgb(125, 211, 252)'; this.style.color='rgb(125, 211, 252)';" onmouseout="this.style.borderColor='rgb(48, 54, 61)'; this.style.color='rgb(250, 250, 250)';">
-                        🖨️ Salida de Impresión Nativa (Windows)
-                    </button>
-                </div>
-                """, height=45)
-            else:
-                st.button("🖨️ Salida de Impresión Nativa (Windows)", key="btn_impresion_windows_disabled", use_container_width=True, disabled=True)
+                    b2b_unicos = df_fuente["contratista"].unique() if "contratista" in df_fuente.columns else []
+                    str_empresa = b2b_unicos[0] if len(b2b_unicos) == 1 else "Todas las empresas"
+                
+                    ruts_unicos = df_fuente["rut operario"].unique() if "rut operario" in df_fuente.columns else []
+                    str_cosechador = ruts_unicos[0] if len(ruts_unicos) == 1 else f"Varios operarios ({len(ruts_unicos)})"
+                
+                    # Construcción de filas HTML separando ítems de flores y mermas de forma independiente
+                    filas_html = ""
+                    
+                    if not df_vale_prod.empty:
+                        filas_html += "<tr><td colspan='2' style='padding:6px 4px 2px 4px; font-weight:bold; background-color:#f3f4f6; color:#111827;'>🌿 PRODUCCIÓN DE FLORES</td></tr>"
+                        for _, r in df_vale_prod.iterrows():
+                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold;'>{r['varas']}</td></tr>"
 
-            # --- Renderizado visual de la vista previa en pantalla ---
-            if st.session_state.html_vale_actual: 
-                st.markdown("---")
-                st.markdown("##### Vista Previa del Comprobante:")
-                st.html(st.session_state.html_vale_actual)
+                    if not df_vale_merma.empty:
+                        filas_html += "<tr><td colspan='2' style='padding:8px 4px 2px 4px; font-weight:bold; background-color:#fee2e2; color:#991b1b;'>🗑️ MERMAS</td></tr>"
+                        for _, r in df_vale_merma.iterrows():
+                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold; color:#991b1b;'>{r['varas']}</td></tr>"
+
+                    total_varas_prod = int(df_vale_prod["varas"].sum()) if not df_vale_prod.empty else 0
+                    total_varas_merma = int(df_vale_merma["varas"].sum()) if not df_vale_merma.empty else 0
+                
+                    st.session_state.html_vale_actual = f"""
+                    <style>
+                        @media print {{
+                            @page {{
+                                size: portrait;
+                                margin: 0;
+                            }}
+                            html, body {{
+                                background-color: #ffffff !important;
+                                background: #ffffff !important;
+                                width: 100% !important;
+                                height: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                overflow: hidden !important;
+                            }}
+                            body * {{
+                                visibility: hidden !important;
+                            }}
+                            #printable-wrapper, #printable-wrapper * {{
+                                visibility: visible !important;
+                            }}
+                            #printable-wrapper {{
+                                position: fixed !important;
+                                left: 0px !important;
+                                top: 0px !important;
+                                width: 100% !important;
+                                height: auto !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                background-color: #ffffff !important;
+                                z-index: 999999 !important;
+                            }}
+                            #printable-voucher {{
+                                margin: 10px !important;
+                                page-break-before: avoid !important;
+                                page-break-after: avoid !important;
+                                page-break-inside: avoid !important;
+                                break-before: avoid !important;
+                                break-after: avoid !important;
+                                break-inside: avoid !important;
+                            }}
+                        }}
+                    </style>
+                    <div id='printable-wrapper'>
+                        <div id='printable-voucher' style='background-color:white; color:black; padding:15px; font-family:monospace; border:1px solid #ccc; max-width: 380px;'>
+                            <h3 style='text-align:center; margin:0; color:black;'>FLORES ANTIVERO</h3>
+                            <p style='text-align:center; margin:5px 0; font-size:12px; color:black;'>COMPROBANTE DE COSECHA Y AUDITORÍA</p>
+                            <hr style='border-top:1px dashed black;'>
+                            <p style='margin:3px 0; color:black;'><b>Fecha:</b> {str_fecha}</p>
+                            <p style='margin:3px 0; color:black;'><b>Origen:</b> {str_origen}</p>
+                            <p style='margin:3px 0; color:black;'><b>Empresa:</b> {str_empresa}</p>
+                            <p style='margin:3px 0; color:black;'><b>Cosechador:</b> {str_cosechador}</p>
+                            <hr style='border-top:1px dashed black;'>
+                            <table style='width:100%; border-collapse:collapse; color:black;'>
+                                <thead><tr><th style='text-align:left;'>Variedad</th><th style='text-align:right;'>Varas</th></tr></thead>
+                                <tbody>{filas_html}</tbody>
+                            </table>
+                            <hr style='border-top:1px dashed black;'>
+                            <p style='margin:3px 0; display:flex; justify-content:space-between; color:black;'><span>Total Flores:</span> <b>{total_varas_prod} Varas</b></p>
+                            <p style='margin:3px 0; display:flex; justify-content:space-between; color:black;'><span>Total Mermas:</span> <b>{total_varas_merma} Varas</b></p>
+                            <hr style='border-top:1px dashed black;'>
+                            <h3 style='display:flex; justify-content:space-between; margin:0; color:black;'><span>TOTAL GENERAL:</span> <span>{total_varas_prod + total_varas_merma} Varas</span></h3>
+                        </div>
+                    </div>"""
+                    st.success("✅ Datos cargados correctamente para imprimir.")
+                else:
+                    st.warning("⚠️ No existen registros en la tabla. Ejecuta la búsqueda primero.")
+                    st.session_state.html_vale_actual = ""
+            except Exception as e: 
+                st.error(f"Error: {e}")
+
+        # 2. Botón de Impresión Directa (Zebra)
+        if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_impresion_directa_zebra", use_container_width=True, type="primary"):
+            st.info("⚡ Enviando directamente a la impresora ZPL (Zebra)...")
+
+        # 3. Botón de Windows unificado
+        if st.session_state.html_vale_actual != "":
+            components.html("""
+            <div style="font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace; width: 100%; margin-top: 0px;">
+                <button onclick="window.parent.print();" style="
+                    background-color: rgb(14, 17, 23); 
+                    color: rgb(250, 250, 250); 
+                    border: 1px solid rgb(48, 54, 61); 
+                    padding: 0.5rem 1rem; 
+                    font-size: 14px; 
+                    font-weight: 400; 
+                    border-radius: 0.5rem; 
+                    cursor: pointer; 
+                    width: 100%;
+                    text-align: center;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    box-sizing: border-box;
+                    font-family: inherit;
+                " onmouseover="this.style.borderColor='rgb(125, 211, 252)'; this.style.color='rgb(125, 211, 252)';" onmouseout="this.style.borderColor='rgb(48, 54, 61)'; this.style.color='rgb(250, 250, 250)';"">
+                    🖨️ Salida de Impresión Nativa (Windows)
+                </button>
+            </div>
+            """, height=45)
+        else:
+            st.button("🖨️ Salida de Impresión Nativa (Windows)", key="btn_impresion_windows_disabled", use_container_width=True, disabled=True)
+
+        # --- Renderizado visual de la vista previa en pantalla ---
+        if st.session_state.html_vale_actual: 
+            st.markdown("---")
+            st.markdown("##### Vista Previa del Comprobante:")
+            st.html(st.session_state.html_vale_actual)
 
     # ==================================================================
     # F. PANEL DE CONFIGURACIÓN DEL CATÁLOGO DIRECTO EN LA NUBE
     # ==================================================================
     st.write("---")
     st.markdown("<h2 style='color:#38bdf8;'>⚙️ Panel de Configuración del Catálogo</h2>", unsafe_allow_html=True)
-    s_cc, s_b2b, s_flores = st.tabs(["🏬 Centros de Costo", "🤝 Contratistas B2B", "💐 Flores y Variedades"])
+    s_cc, s_b2b, s_flores, s_mermas = st.tabs(["🏬 Centros de Costo", "🤝 Contratistas B2B", "💐 Flores y Variedades", "🗑️ Mermas"])
     
     with s_cc:
         with st.form("form_add_cc", clear_on_submit=True):
@@ -1922,3 +2004,24 @@ with tab_auditoria:
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error al guardar en Firestore: {e}")
+
+    with s_mermas:
+        with st.form("form_add_merma", clear_on_submit=True):
+            st.markdown("### ➕ Registrar Nueva Merma")
+            nueva_merma_codigo = st.text_input("Código de Merma:", placeholder="Ej: MH01", key="in_merma_cod").strip()
+            nueva_merma_nombre = st.text_input("Descripción / Nombre de la Merma:", placeholder="Ej: Ranunculus", key="in_merma_nom").strip()
+                
+            if st.form_submit_button("Registrar Merma", use_container_width=True):
+                if nueva_merma_codigo and nueva_merma_nombre:
+                    try:
+                        db.collection("merma").add({
+                            "codigo": nueva_merma_codigo,
+                            "merma": nueva_merma_nombre,
+                            "fecha_creacion": datetime.datetime.now()
+                        })
+                        st.success(f"✅ Merma '{nueva_merma_nombre}' (Código: {nueva_merma_codigo}) registrada correctamente en la colección 'merma'.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al guardar la merma en Firebase: {e}")
+                else:
+                    st.warning("⚠️ Todos los campos (Código y Merma) son obligatorios.")

@@ -148,16 +148,44 @@ def dibujar_teclado_enrolamiento_antivero():
     )
 
     st.write("")
-    st.markdown("<label>👤 RUT Cosechador a Enrolar</label>", unsafe_allow_html=True)
+    st.markdown("<label>👤 RUT o Escaneo QR Cosechador</label>", unsafe_allow_html=True)
 
     rut_ingresado_fisico = st.text_input(
-        "DIGITE EL RUT DIRECTAMENTE AQUÍ...",
+        "DIGITE O ESCANEE EL QR AQUÍ...",
         value="",
         key="input_unico_fisico_antivero",
-        placeholder="Ej: 000000000"
+        placeholder="Ej: 12345678-9 o URL del carnet"
     )
 
-    rut_crudo = "".join([c for c in rut_ingresado_fisico.upper() if c.isdigit() or c == "K"])
+    # 🔍 Lógica para extraer RUT y Nombre si se escanea el QR del carnet de identidad chileno
+    rut_procesar = rut_ingresado_fisico.strip()
+    nombre_extraido_qr = ""
+
+    if "run=" in rut_procesar.lower() or "rut=" in rut_procesar.lower() or "http" in rut_procesar.lower():
+        try:
+            from urllib.parse import parse_qs, urlparse
+            parsed_url = urlparse(rut_procesar)
+            query_params = parse_qs(parsed_url.query)
+            
+            # Buscar RUT en parámetros comunes del QR del Registro Civil
+            for param in ["run", "rut", "RUN", "RUT"]:
+                if param in query_params:
+                    rut_procesar = query_params[param][0]
+                    break
+            
+            # Buscar Nombre si viene incluido en el QR
+            for param_nom in ["nombre", "nombres", "name", "NOMBRE"]:
+                if param_nom in query_params:
+                    nombre_extraido_qr = query_params[param_nom][0].replace("+", " ").title()
+                    break
+        except Exception:
+            pass
+
+    # Si el nombre fue detectado por QR y hay un campo en session_state para guardarlo automáticamente, lo seteamos
+    if nombre_extraido_qr and "input_nombre_operario" in st.session_state:
+        st.session_state["input_nombre_operario"] = nombre_extraido_qr
+
+    rut_crudo = "".join([c for c in rut_procesar.upper() if c.isdigit() or c == "K"])
     
     if len(rut_crudo) > 1:
         cuerpo = rut_crudo[:-1]
@@ -178,15 +206,26 @@ def dibujar_teclado_enrolamiento_antivero():
     
     col_visor_texto, col_visor_icono = st.columns([3, 1])
     with col_visor_texto:
-        st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:52px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="rut-display-box" style="font-size:20px; min-height:52px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
     with col_visor_icono:
         st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:52px; margin-bottom:0; background-color:#1e293b; text-align:center;">{icono_verificacion}</div>', unsafe_allow_html=True)
         
+    st.write("")
+
+    # Campo para el Nombre del Operario (manual o autocomllenado por QR)
+    nombre_operario = st.text_input(
+        "Nombre del Operario:",
+        value="",
+        key="input_nombre_operario",
+        placeholder="Se llena automático con QR o escriba manual"
+    )
+    
     st.write("")
     
     st.markdown('<div class="barra-azul-enter-enrol">', unsafe_allow_html=True)
     bloqueo_enrol = (
         not rut_es_valido or 
+        not nombre_operario.strip() or
         cc_manana == "Seleccione Centro de Costo..." or 
         contratista_manana == "Seleccione Contratista..."
     )
@@ -197,6 +236,7 @@ def dibujar_teclado_enrolamiento_antivero():
             ahora_cl = datetime.datetime.now(tz_cl)
             fecha_hoy_str = ahora_cl.strftime("%Y-%m-%d")
             rut_limpio = rut_crudo.lower()
+            nombre_limpio = nombre_operario.strip().title()
             
             # 🛑 VALIDACIÓN ANTI-DUPLICADOS: Validar si este RUT ya sacó código hoy
             duplicados = db.collection("credenciales_activas_dia")\
@@ -207,7 +247,7 @@ def dibujar_teclado_enrolamiento_antivero():
             if duplicados:
                 datos_existentes = duplicados[0].to_dict()
                 id_existente = datos_existentes.get("id_express")
-                st.warning(f"⚠️ El operario RUT {rut_visible} ya está registrado hoy con la Ficha #{id_existente}.")
+                st.warning(f"⚠️ El operario {nombre_limpio} (RUT {rut_visible}) ya está registrado hoy con la Ficha #{id_existente}.")
                 
                 # Cargar el QR existente para permitir reimpresión sin generar duplicado
                 qr = qrcode.QRCode(version=1, box_size=8, border=1)
@@ -238,6 +278,7 @@ def dibujar_teclado_enrolamiento_antivero():
             db.collection("credenciales_activas_dia").document(str(id_express)).set({
                 "id_express": str(id_express),
                 "RutCosechador": rut_limpio,
+                "NombreCosechador": nombre_limpio,
                 "CentroCosto": cc_valor,
                 "Contratista": contratista_valor,
                 "CodigoLargoAuditoria": codigo_largo_auditoria,
@@ -310,21 +351,17 @@ def dibujar_teclado_enrolamiento_antivero():
                     </div>
                     
                     <script>
-                        // Inyectamos estilos que fuerzan el fondo blanco del body y ocultan el resto de la app al imprimir
                         var estilo = window.parent.document.createElement('style');
                         estilo.innerHTML = `
                             @media print {{
-                                /* Forzar fondo blanco y texto negro absoluto en toda la página */
                                 html, body, [data-testid="stAppViewContainer"] {{
                                     background-color: #ffffff !important;
                                     color: #000000 !important;
                                     background: #ffffff !important;
                                 }}
-                                /* Ocultar absolutamente todo lo que no sea nuestro ticket */
                                 body * {{ 
                                     visibility: hidden !important; 
                                 }}
-                                /* Volver visible únicamente el bloque del QR */
                                 #ticket-imprimible-exclusivo, #ticket-imprimible-exclusivo * {{ 
                                     visibility: visible !important; 
                                 }}
@@ -340,17 +377,14 @@ def dibujar_teclado_enrolamiento_antivero():
                         `;
                         window.parent.document.head.appendChild(estilo);
                         
-                        // Inyectar el div temporal en el documento principal
                         var divTemporal = window.parent.document.createElement('div');
                         divTemporal.id = "ticket-imprimible-exclusivo";
                         divTemporal.style.background = "#ffffff";
                         divTemporal.innerHTML = document.getElementById("ticket-imprimible-exclusivo").innerHTML;
                         window.parent.document.body.appendChild(divTemporal);
                         
-                        // Abrir cuadro de diálogo de Windows
                         setTimeout(function() {{
                             window.parent.print();
-                            // Limpieza del HTML inyectado al terminar o cancelar
                             divTemporal.remove();
                             estilo.remove();
                         }}, 200);
@@ -1091,7 +1125,7 @@ with tab_credenciales:
 with tab_terminal:
     # Inicialización segura de estados para el Mesón si no existen
     if "familia_activa_meson" not in st.session_state:
-        st.session_state.familia_activa_meson = "Delphinium Guardian"
+        st.session_state.familia_activa_meson = "DELPHINIUM"
     if "rut_cosechador" not in st.session_state:
         st.session_state.rut_cosechador = ""
     if "rut_bloqueado_operacion" not in st.session_state:
@@ -1261,7 +1295,7 @@ with col_centro_flujo:
         
         st.html("<style>button[key^='btn_grid_fam_'] { border-radius:8px !important; padding:12px !important; font-weight:bold !important; font-size:15px !important; }</style>")
         
-        familias_lista = list(diccionario_flores_dinamico.keys()) if diccionario_flores_dinamico else ["Ranunculo Romance", "Ranunculo Elegance", "Ranunculo Standard", "Peonías", "Delphinium Guardian"]
+        familias_lista = list(diccionario_flores_dinamico.keys()) if diccionario_flores_dinamico else ["RANÚNCULO", "PEONÍA", "DELPHINIUM", "SNAPDRAGON"]
         
         for i in range(0, len(familias_lista), 2):
             par_familias = familias_lista[i:i+2]
@@ -1270,7 +1304,7 @@ with col_centro_flujo:
                 with cols_fam[idx]:
                     es_activa = (st.session_state.familia_activa_meson == fam_item)
                     tipo_b = "primary" if es_activa else "secondary"
-                    prefix = "🌿 " if "Delphinium" in fam_item else "🌸 "
+                    prefix = "🌿 " if "DELPHINIUM" in fam_item else "🌸 "
                     
                     if st.button(f"{prefix}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_b):
                         st.session_state.familia_activa_meson = fam_item
@@ -1376,11 +1410,30 @@ with col_derecha_consolidacion:
             try:
                 import datetime
                 import zoneinfo
+                
                         
                 # A. Recuperamos datos del estado de la tablet (respetando sus mayúsculas originales)
                 cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
                 contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
                         
+                # 🔍 NUEVO: Buscamos de forma automática el nombre del cosechero registrado previamente en el día
+                rut_limpio_busqueda = st.session_state.get("rut_cosechador", "").strip().lower()
+                nombre_cosechador_encontrado = "Sin Nombre"
+                
+                try:
+                    tz_cl_busqueda = zoneinfo.ZoneInfo("America/Santiago")
+                    fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl_busqueda).strftime("%Y-%m-%d")
+                    
+                    credenciales_query = db.collection("credenciales_activas_dia")\
+                        .where("FechaFiltro", "==", fecha_hoy_busqueda_str)\
+                        .where("RutCosechador", "==", rut_limpio_busqueda)\
+                        .limit(1).get()
+                        
+                    if credenciales_query:
+                        nombre_cosechador_encontrado = credenciales_query[0].to_dict().get("NombreCosechador", "Sin Nombre")
+                except Exception:
+                    pass
+
                 # B. Buscamos el CÓDIGO real del Centro de Costo en Firestore
                 codigo_cc_real = "n/a"
                 try:
@@ -1420,10 +1473,15 @@ with col_derecha_consolidacion:
                     variedad_final = item_seleccionado["nombre"]
                     codigo_articulo = str(item_seleccionado["codigo"])
                         
-                # E. Envío estructurado a Firestore incluyendo es_merma
+                # E. Envío estructurado a Firestore incluyendo el nombre del cosechero y fecha filtro
+                tz_envio = zoneinfo.ZoneInfo("America/Santiago")
+                ahora_envio = datetime.datetime.now(tz_envio)
+                
                 db.collection("cosecha_diaria").add({
-                    "fecha_registro": datetime.datetime.now(zoneinfo.ZoneInfo("America/Santiago")),
+                    "fecha_registro": ahora_envio,
+                    "FechaFiltro": ahora_envio.strftime("%Y-%m-%d"),
                     "rut_cosechador": st.session_state.rut_cosechador.upper(),
+                    "nombre_cosechador": nombre_cosechador_encontrado,
 
                     "contratista_nombre": contratista_nombre,
                     "rut_contratista": rut_contratista_real,
@@ -1463,78 +1521,132 @@ with col_derecha_consolidacion:
 
 # Historial Diario de Terreno
         st.write("")
-        st.markdown("<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>", unsafe_allow_html=True)
-        
+        st.markdown(
+            "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google"
+            " Cloud)</h3>",
+            unsafe_allow_html=True,
+        )
+
+
         @st.fragment
         def fragmento_historial_dia_terreno():
-            # ⚡ Si la lista está vacía en caché, intentamos consultar Firestore directamente una vez para inicializarla
-            if "lista_datos_dia_cache" not in st.session_state or not st.session_state["lista_datos_dia_cache"]:
-                try:
-                    import datetime
-                    import zoneinfo
-                    tz_local = zoneinfo.ZoneInfo("America/Santiago")
-                    fecha_hoy_chile = datetime.datetime.now(tz_local).date()
-                    filtro_fecha = st.date_input("Selecciona la fecha para el historial:", value=fecha_hoy_chile)
-                    inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
-                    fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
-                    
-                    
-                    docs_hoy = db.collection("cosecha_diaria")\
-                               .where("fecha_registro", ">=", inicio_hoy)\
-                               .where("fecha_registro", "<=", fin_hoy)\
-                               .stream()
-                    
-                    st.session_state["lista_datos_dia_cache"] = [doc.to_dict() for doc in docs_hoy]
-                except Exception as e_carga:
-                    st.session_state["lista_datos_dia_cache"] = []
+          # ⚡ Si la lista está vacía en caché, intentamos consultar Firestore directamente una vez para inicializarla
+          if (
+              "lista_datos_dia_cache" not in st.session_state
+              or not st.session_state["lista_datos_dia_cache"]
+          ):
+            try:
+              import datetime
+              import zoneinfo
 
-            lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
-            
-            if lista_operario_real:
-                try:
-                    df_op = pd.DataFrame(lista_operario_real)
-                    
-                    col_rut = "rut_cosechador" if "rut_cosechador" in df_op.columns else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
-                    col_familia = "familia_flor" if "familia_flor" in df_op.columns else None
-                    col_variedad = "variedad_flor" if "variedad_flor" in df_op.columns else ("DescripcionArticulo" if "DescripcionArticulo" in df_op.columns else None)
-                    col_varas = "cantidad_varas" if "cantidad_varas" in df_op.columns else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
-                    col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
-                    
-                    if col_rut and col_variedad and col_varas:
-                        import __main__ as main
-                        
-                        if hasattr(main, "formatear_rut_chileno_completo"):
-                            df_op[col_rut] = df_op[col_rut].apply(lambda x: main.formatear_rut_chileno_completo(x) if pd.notnull(x) else x)
-                        
-                        agrupadores = [col_rut]
-                        if col_familia and col_familia in df_op.columns:
-                            agrupadores.append(col_familia)
-                        agrupadores.append(col_variedad)
-                        if col_es_merma and col_es_merma in df_op.columns:
-                            agrupadores.append(col_es_merma)
-                        
-                        df_op_render = df_op.groupby(agrupadores, as_index=False)[col_varas].sum()
-                        
-                        renombre_columnas = {
-                            col_rut: "RUT Cosechador",
-                            col_variedad: "Variedad / Detalle",
-                            col_varas: "Cantidad Varas"
-                        }
-                        if col_familia:
-                            renombre_columnas[col_familia] = "Familia"
-                        if col_es_merma:
-                            renombre_columnas[col_es_merma] = "¿Es Merma?"
-                            
-                        df_op_render = df_op_render.rename(columns=renombre_columnas)
-                        
-                        st.dataframe(df_op_render, use_container_width=True, hide_index=True)
-                    else:
-                        st.warning("⚠️ No se encontraron las columnas esperadas en los datos del servidor.")
-                        
-                except Exception as e_tabla:
-                    st.caption(f"⚠️ Nota de visualización: {e_tabla}")
-            else:
-                st.info("📝 No hay registros cargados hoy en este mesón.")
+              tz_local = zoneinfo.ZoneInfo("America/Santiago")
+              fecha_hoy_chile = datetime.datetime.now(tz_local).date()
+
+              # 1. Selector de fecha en Streamlit para el usuario
+              filtro_fecha = st.date_input(
+                  "Selecciona la fecha para el historial:", value=fecha_hoy_chile, key="filtro_fecha_historial_meson"
+              )
+
+              # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD' para buscar el día exacto
+              filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
+
+              # 3. Consulta limpia a Firestore usando FechaFiltro (más seguro y compatible)
+              docs_hoy = (
+                  db.collection("cosecha_diaria")
+                  .where("FechaFiltro", "==", filtro_fecha_str)
+                  .stream()
+              )
+
+              st.session_state["lista_datos_dia_cache"] = [
+                  doc.to_dict() for doc in docs_hoy
+              ]
+            except Exception as e_carga:
+              st.session_state["lista_datos_dia_cache"] = []
+
+          lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
+
+          if lista_operario_real:
+            try:
+              df_op = pd.DataFrame(lista_operario_real)
+
+              col_rut = (
+                  "rut_cosechador"
+                  if "rut_cosechador" in df_op.columns
+                  else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
+              )
+              col_nombre = (
+                  "nombre_cosechador"
+                  if "nombre_cosechador" in df_op.columns
+                  else ("NombreCosechador" if "NombreCosechador" in df_op.columns else None)
+              )
+              col_familia = (
+                  "familia_flor" if "familia_flor" in df_op.columns else None
+              )
+              col_variedad = (
+                  "variedad_flor"
+                  if "variedad_flor" in df_op.columns
+                  else (
+                      "DescripcionArticulo"
+                      if "DescripcionArticulo" in df_op.columns
+                      else None
+                  )
+              )
+              col_varas = (
+                  "cantidad_varas"
+                  if "cantidad_varas" in df_op.columns
+                  else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
+              )
+              col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
+
+              if col_rut and col_variedad and col_varas:
+                import __main__ as main
+
+                if hasattr(main, "formatear_rut_chileno_completo"):
+                  df_op[col_rut] = df_op[col_rut].apply(
+                      lambda x: main.formatear_rut_chileno_completo(x)
+                      if pd.notnull(x)
+                      else x
+                  )
+
+                agrupadores = [col_rut]
+                if col_nombre and col_nombre in df_op.columns:
+                    agrupadores.append(col_nombre)
+                if col_familia and col_familia in df_op.columns:
+                  agrupadores.append(col_familia)
+                agrupadores.append(col_variedad)
+                if col_es_merma and col_es_merma in df_op.columns:
+                  agrupadores.append(col_es_merma)
+
+                df_op_render = df_op.groupby(agrupadores, as_index=False)[
+                    col_varas
+                ].sum()
+
+                renombre_columnas = {
+                    col_rut: "RUT Cosechador",
+                    col_variedad: "Variedad / Detalle",
+                    col_varas: "Cantidad Varas",
+                }
+                if col_nombre:
+                    renombre_columnas[col_nombre] = "Nombre Cosechador"
+                if col_familia:
+                  renombre_columnas[col_familia] = "Familia"
+                if col_es_merma:
+                  renombre_columnas[col_es_merma] = "¿Es Merma?"
+
+                df_op_render = df_op_render.rename(columns=renombre_columnas)
+
+                st.dataframe(df_op_render, use_container_width=True, hide_index=True)
+              else:
+                st.warning(
+                    "⚠️ No se encontraron las columnas esperadas en los datos del"
+                    " servidor."
+                )
+
+            except Exception as e_tabla:
+              st.caption(f"⚠️ Nota de visualización: {e_tabla}")
+          else:
+            st.info("📝 No hay registros cargados hoy en este mesón.")
+
 
         fragmento_historial_dia_terreno()
 
@@ -1645,16 +1757,17 @@ with tab_auditoria:
                         df_auditoria["fecha"] = ""
 
                     # Formateo visual con nombres compactos
-                    df_auditoria["rut operario"] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
-                    df_auditoria["contratista"] = df_auditoria.get("contratista_nombre", "n/a")
-                    df_auditoria["rut contratista"] = df_auditoria.get("rut_contratista", "0-0")
-                    df_auditoria["cód. contratista"] = df_auditoria.get("codigo_contratista", "n/a")
-                    df_auditoria["centro de costo"] = df_auditoria.get("centro_costo", "n/a")
-                    df_auditoria["cód. c. costo"] = df_auditoria.get("codigo_centro_costo", "n/a")
+                    df_auditoria["rut op."] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
+                    df_auditoria["nombre op."] = df_auditoria.get("nombre_cosechador", "n/a")
+                    df_auditoria["cont."] = df_auditoria.get("contratista_nombre", "n/a")
+                    df_auditoria["rut cont."] = df_auditoria.get("rut_contratista", "0-0")
+                    df_auditoria["sku c."] = df_auditoria.get("codigo_contratista", "n/a")
+                    df_auditoria["c.c."] = df_auditoria.get("centro_costo", "n/a")
+                    df_auditoria["sku c.c."] = df_auditoria.get("codigo_centro_costo", "n/a")
                     df_auditoria["familia flor"] = df_auditoria.get("familia_flor", "n/a")
                     df_auditoria["variedad"] = df_auditoria.get("variedad_flor", "n/a")
-                    df_auditoria["cód. flor"] = df_auditoria.get("codigo_flor", "n/a")
-                    df_auditoria["varas"] = df_auditoria.get("cantidad_varas", 0).astype(int)
+                    df_auditoria["sku flor"] = df_auditoria.get("codigo_flor", "n/a")
+                    df_auditoria["v."] = df_auditoria.get("cantidad_varas", 0).astype(int)  # <-- Cambiado a "v." para ahorrar espacio
                     df_auditoria["es_merma_bool"] = df_auditoria.get("es_merma", False)
 
                     # 💾 GUARDAMOS EL RESULTADO EN MEMORIA DE SESIÓN
@@ -1669,15 +1782,20 @@ with tab_auditoria:
         except Exception as e_error_auditoria:
             st.error(f"❌ Error en consulta Firebase: {e_error_auditoria}")
 
-    # 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS (SIN MOSTRAR EL ID DE FIREBASE NI ES_MERMA_BOOL)
+# 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
         
-        # ⚠️ Quitamos "id_documento_firebase" y "es_merma_bool" para que la tabla no los muestre visualmente
+        # ⚠️ Verificamos que 'v.' esté presente en el DataFrame de sesión
+        if "v." not in df_ver.columns and "cantidad_varas" in df_ver.columns:
+            df_ver["v."] = df_ver["cantidad_varas"].astype(int)
+            st.session_state["df_auditoria_activo"] = df_ver
+
+        # ⚠️ Nombres exactos de las columnas (Incluyendo explícitamente "v.")
         columnas_vista = [
-            "fecha", "rut operario", "contratista", "rut contratista", 
-            "cód. contratista", "centro de costo", "cód. c. costo", 
-            "familia flor", "variedad", "cód. flor", "varas"
+            "fecha", "rut op.", "nombre op.", "cont.", "rut cont.", 
+            "sku c.", "c.c.", "sku c.c.", 
+            "familia flor", "variedad", "sku flor", "v."
         ]
         
         cols_presentes = [c for c in columnas_vista if c in df_ver.columns]
@@ -1685,18 +1803,25 @@ with tab_auditoria:
         st.markdown("---")
         st.info("✏️ **Modo Edición Activado:** Haz doble clic sobre cualquier celda de la tabla inferior para modificar sus valores. Al terminar, presiona el botón de guardar para actualizar la base de datos en la nube.")
         
-        # Pasamos el dataframe filtrado a la vista
+        # 📐 Altura dinámica: Calcula exactamente los píxeles necesarios según la cantidad de filas
+        num_filas = len(df_ver)
+        altura_calculada = min(max((num_filas + 1) * 38, 100), 400)
+        
+        # Pasamos el dataframe filtrado a la vista asegurando el uso de cols_presentes
         df_editado_vista = st.data_editor(
             df_ver[cols_presentes], 
             use_container_width=True, 
             hide_index=True,
             disabled=["fecha"], 
+            height=altura_calculada,
             key="editor_tabla_auditoria"
         )
         
         col_metrica, col_guardar_cambios = st.columns([2, 1])
         with col_metrica:
-            total_v = df_editado_vista["varas"].sum()
+            # Validación segura por si la columna viene renombrada o alterada por el editor
+            col_vara_key = "v." if "v." in df_editado_vista.columns else df_editado_vista.columns[-1]
+            total_v = df_editado_vista[col_vara_key].sum()
             st.metric(label="Suma Total de Varas (Editadas)", value=f"{total_v} varas")
             
         with col_guardar_cambios:
@@ -1707,33 +1832,31 @@ with tab_auditoria:
                     total_filas = len(df_editado_vista)
                     
                     for idx, row in df_editado_vista.iterrows():
-                        # Recuperamos el ID oculto utilizando el índice de la fila
                         doc_id = df_ver.iloc[idx].get("id_documento_firebase")
                         
-                        # 🛠️ CORRECCIÓN CLAVE: Detectamos automáticamente si es merma según lo que el usuario escribió en la tabla
                         familia_actualizada = str(row.get("familia flor", "")).strip()
                         es_merma_calculada = familia_actualizada.lower() == "merma"
                         
                         if doc_id:
                             datos_actualizados = {
-                                "rut_cosechador": str(row.get("rut operario", "")).strip().upper(),
-                                "contratista_nombre": str(row.get("contratista", "")).strip(),
-                                "rut_contratista": str(row.get("rut contratista", "")).strip(),
-                                "codigo_contratista": str(row.get("cód. contratista", "")).strip(),
-                                "centro_costo": str(row.get("centro de costo", "")).strip(),
-                                "codigo_centro_costo": str(row.get("cód. c. costo", "")).strip(),
+                                "rut_cosechador": str(row.get("rut op.", "")).strip().upper(),
+                                "nombre_cosechador": str(row.get("nombre op.", "")).strip().upper(),
+                                "contratista_nombre": str(row.get("cont.", "")).strip(),
+                                "rut_contratista": str(row.get("rut cont.", "")).strip(),
+                                "codigo_contratista": str(row.get("sku c.", "")).strip(),
+                                "centro_costo": str(row.get("c.c.", "")).strip(),
+                                "codigo_centro_costo": str(row.get("sku c.c.", "")).strip(),
                                 "familia_flor": familia_actualizada,
                                 "variedad_flor": str(row.get("variedad", "")).strip(),
-                                "codigo_flor": str(row.get("cód. flor", "")).strip(),
-                                "cantidad_varas": int(row.get("varas", 0)),
-                                "es_merma": es_merma_calculada  # Se actualiza dinámicamente
+                                "codigo_flor": str(row.get("sku flor", "")).strip(),
+                                "cantidad_varas": int(row.get(col_vara_key, 0)),
+                                "es_merma": es_merma_calculada 
                             }
                             db.collection("cosecha_diaria").document(doc_id).update(datos_actualizados)
                         
                         progreso = int(((idx + 1) / total_filas) * 100)
                         barra_progreso.progress(progreso, text=f"Actualizando registro {idx + 1} de {total_filas}...")
                     
-                    # Actualizamos también el estado interno para que refleje el nuevo bool de merma de inmediato
                     df_ver.update(df_editado_vista)
                     df_ver["es_merma_bool"] = df_ver["familia flor"].astype(str).str.strip().str.lower() == "merma"
                     st.session_state["df_auditoria_activo"] = df_ver
@@ -1744,9 +1867,9 @@ with tab_auditoria:
                 except Exception as e_guardar:
                     st.error(f"❌ Error al guardar los cambios en la nube: {e_guardar}")
 
-    # ==================================================================
-    # E. EXPORTACIÓN ERP Y EMISIÓN DE VALES FORMALES EN TICKET CHILE
-    # ==================================================================
+# ==================================================================
+# E. EXPORTACIÓN ERP Y EMISIÓN DE VALES FORMALES EN TICKET CHILE
+# ==================================================================
     st.write("---")
     st.markdown("<h2 style='color:#38bdf8;'>🧾 Exportación y Comprobantes de Cosecha</h2>", unsafe_allow_html=True)
         
@@ -1760,26 +1883,24 @@ with tab_auditoria:
             st.markdown("### Planilla Contable")
             if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
                 try:
-                    # Verificamos si tenemos datos activos en la sesión (la misma tabla que ya estás viendo y auditando)
                     if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
                         df_kame_source = st.session_state["df_auditoria_activo"].copy()
                     
-                        # Mapeamos los campos actuales del DataFrame a los nombres que KAME necesita
-                        df_kame_source["CentroCosto"] = df_kame_source.get("centro_de_costo", df_kame_source.get("centro_costo", ""))
-                        df_kame_source["RutContratista"] = df_kame_source.get("rut_contratista", "")
-                        df_kame_source["ContratistaNombre"] = df_kame_source.get("contratista_nombre", df_kame_source.get("contratista", ""))
-                        df_kame_source["RutCosechador"] = df_kame_source.get("rut_cosechador", "")
-                        df_kame_source["CodigoArticulo"] = df_kame_source.get("codigo_flor", "")
+                        df_kame_source["CentroCosto"] = df_kame_source.get("centro_de_costo", df_kame_source.get("c.c.", ""))
+                        df_kame_source["RutContratista"] = df_kame_source.get("rut_contratista", df_kame_source.get("rut cont.", ""))
+                        df_kame_source["ContratistaNombre"] = df_kame_source.get("contratista_nombre", df_kame_source.get("cont.", ""))
+                        df_kame_source["RutCosechador"] = df_kame_source.get("rut_cosechador", df_kame_source.get("rut op.", ""))
+                        df_kame_source["NombreCosechador"] = df_kame_source.get("nombre_cosechador", df_kame_source.get("nombre op.", ""))
+                        df_kame_source["CodigoArticulo"] = df_kame_source.get("codigo_flor", df_kame_source.get("sku flor", ""))
                         df_kame_source["DescripcionArticulo"] = df_kame_source.get("variedad_flor", df_kame_source.get("variedad", ""))
-                        df_kame_source["CantidadVaras"] = df_kame_source.get("cantidad_varas", df_kame_source.get("varas", 0)).astype(int)
+                        df_kame_source["CantidadVaras"] = df_kame_source.get("cantidad_varas", df_kame_source.get("v.", 0)).astype(int)
 
-                        columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
+                        columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
                     
-                        # Validamos que existan las columnas esenciales antes de agrupar
                         cols_presentes_kame = [c for c in columnas_kame if c in df_kame_source.columns]
                     
                         df_agrupado_kame = df_kame_source[cols_presentes_kame].groupby(
-                            ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], 
+                            ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", "CodigoArticulo", "DescripcionArticulo"], 
                             as_index=False
                         )["CantidadVaras"].sum()
 
@@ -1804,49 +1925,48 @@ with tab_auditoria:
         if "html_vale_actual" not in st.session_state: 
             st.session_state.html_vale_actual = ""
         
-        # 1. Botón para cargar / refrescar los datos del vale desde la tabla activa
         if st.button("🔄 Cargar / Actualizar Datos del Vale", key="btn_vale_process", use_container_width=True):
             try:
                 if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
                     df_fuente = st.session_state["df_auditoria_activo"]
                 
-                    # 🌸 🛠️ Separamos producción y mermas evaluando en tiempo real si dice "Merma" en la familia de flor
                     df_fuente["es_merma_eval"] = df_fuente["familia flor"].astype(str).str.strip().str.lower() == "merma"
                     
                     df_flores_prod = df_fuente[df_fuente["es_merma_eval"] == False]
                     df_flores_mermas = df_fuente[df_fuente["es_merma_eval"] == True]
 
-                    df_vale_prod = df_flores_prod.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
-                    df_vale_merma = df_flores_mermas.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
+                    df_vale_prod = df_flores_prod.groupby(["rut op.", "nombre op.","familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "familia flor", "variedad", "v."])
+                    df_vale_merma = df_flores_mermas.groupby(["rut op.", "nombre op.","familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "familia flor", "variedad", "v."])
                 
-                    # 🧠 Lógica inteligente para evaluar si los campos son únicos o múltiples/abiertos
                     fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
                     str_fecha = str(fechas_unicas[0]) if len(fechas_unicas) == 1 else "Todas las fechas"
                     
-                    ccs_unicos = df_fuente["centro de costo"].unique() if "centro de costo" in df_fuente.columns else []
+                    ccs_unicos = df_fuente["c.c."].unique() if "c.c." in df_fuente.columns else []
                     str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
 
-                    b2b_unicos = df_fuente["contratista"].unique() if "contratista" in df_fuente.columns else []
+                    b2b_unicos = df_fuente["cont."].unique() if "cont." in df_fuente.columns else []
                     str_empresa = b2b_unicos[0] if len(b2b_unicos) == 1 else "Todas las empresas"
                 
-                    ruts_unicos = df_fuente["rut operario"].unique() if "rut operario" in df_fuente.columns else []
+                    ruts_unicos = df_fuente["rut op."].unique() if "rut op." in df_fuente.columns else []
                     str_cosechador = ruts_unicos[0] if len(ruts_unicos) == 1 else f"Varios operarios ({len(ruts_unicos)})"
+
+                    nombre_unicos = df_fuente["nombre op."].unique() if "nombre op." in df_fuente.columns else []
+                    str_cosecheros = nombre_unicos[0] if len(nombre_unicos) == 1 else f"Varios operarios ({len(nombre_unicos)})"
                 
-                    # Construcción de filas HTML separando ítems de flores y mermas de forma independiente
                     filas_html = ""
                     
                     if not df_vale_prod.empty:
                         filas_html += "<tr><td colspan='2' style='padding:6px 4px 2px 4px; font-weight:bold; background-color:#f3f4f6; color:#111827;'>🌿 PRODUCCIÓN DE FLORES</td></tr>"
                         for _, r in df_vale_prod.iterrows():
-                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold;'>{r['varas']}</td></tr>"
+                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold;'>{r['v.']}</td></tr>"
 
                     if not df_vale_merma.empty:
                         filas_html += "<tr><td colspan='2' style='padding:8px 4px 2px 4px; font-weight:bold; background-color:#fee2e2; color:#991b1b;'>🗑️ MERMAS</td></tr>"
                         for _, r in df_vale_merma.iterrows():
-                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold; color:#991b1b;'>{r['varas']}</td></tr>"
+                            filas_html += f"<tr><td style='padding:4px;'>&nbsp;&nbsp;• {r['familia flor']} - {r['variedad']}</td><td style='text-align:right; font-weight:bold; color:#991b1b;'>{r['v.']}</td></tr>"
 
-                    total_varas_prod = int(df_vale_prod["varas"].sum()) if not df_vale_prod.empty else 0
-                    total_varas_merma = int(df_vale_merma["varas"].sum()) if not df_vale_merma.empty else 0
+                    total_varas_prod = int(df_vale_prod["v."].sum()) if not df_vale_prod.empty else 0
+                    total_varas_merma = int(df_vale_merma["v."].sum()) if not df_vale_merma.empty else 0
                 
                     st.session_state.html_vale_actual = f"""
                     <style>
@@ -1901,6 +2021,7 @@ with tab_auditoria:
                             <p style='margin:3px 0; color:black;'><b>Origen:</b> {str_origen}</p>
                             <p style='margin:3px 0; color:black;'><b>Empresa:</b> {str_empresa}</p>
                             <p style='margin:3px 0; color:black;'><b>Cosechador:</b> {str_cosechador}</p>
+                            <p style='margin:3px 0; color:black;'><b>Nombre Cosechador:</b> {str_cosecheros}</p>
                             <hr style='border-top:1px dashed black;'>
                             <table style='width:100%; border-collapse:collapse; color:black;'>
                                 <thead><tr><th style='text-align:left;'>Variedad</th><th style='text-align:right;'>Varas</th></tr></thead>
@@ -1920,11 +2041,9 @@ with tab_auditoria:
             except Exception as e: 
                 st.error(f"Error: {e}")
 
-        # 2. Botón de Impresión Directa (Zebra)
         if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_impresion_directa_zebra", use_container_width=True, type="primary"):
             st.info("⚡ Enviando directamente a la impresora ZPL (Zebra)...")
 
-        # 3. Botón de Windows unificado
         if st.session_state.html_vale_actual != "":
             components.html("""
             <div style="font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace; width: 100%; margin-top: 0px;">
@@ -1953,11 +2072,10 @@ with tab_auditoria:
         else:
             st.button("🖨️ Salida de Impresión Nativa (Windows)", key="btn_impresion_windows_disabled", use_container_width=True, disabled=True)
 
-        # --- Renderizado visual de la vista previa en pantalla ---
         if st.session_state.html_vale_actual: 
             st.markdown("---")
             st.markdown("##### Vista Previa del Comprobante:")
-            st.html(st.session_state.html_vale_actual)    
+            st.html(st.session_state.html_vale_actual)
 
     # ==================================================================
     # F. PANEL DE CONFIGURACIÓN DEL CATÁLOGO DIRECTO EN LA NUBE

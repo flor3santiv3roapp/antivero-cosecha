@@ -633,7 +633,7 @@ if not st.session_state.usuario_conectado:
             pointer-events: none !important;
             display: none !important;
         }
-        /* Forzamos tipografía de círculos si el navegador intenta renderizar texto plano */
+        /* Forzamos tipografía de círculos para enmascarar la contraseña de forma nativa */
         .mascara-pass input {
             -webkit-text-security: disc !important;
             text-security: disc !important;
@@ -648,13 +648,14 @@ if not st.session_state.usuario_conectado:
                 input.removeAttribute('name');
                 input.removeAttribute('id');
                 if (input.getAttribute('type') === 'password') {
-                    // Si el navegador forzó un tipo password, lo degradamos a texto enmascarado por CSS
                     input.setAttribute('type', 'text');
                 }
                 input.setAttribute('autocomplete', 'new-password-off-' + Math.random().toString(36).substring(5));
                 input.setAttribute('autocorrect', 'off');
                 input.setAttribute('autocapitalize', 'off');
                 input.setAttribute('spellcheck', 'false');
+                input.setAttribute('data-lpignore', 'true');
+                input.setAttribute('data-form-type', 'other');
             });
         }, 300);
     </script>
@@ -670,15 +671,17 @@ if not st.session_state.usuario_conectado:
             input_usuario = st.text_input(
                 "INGRESA TU RUT O MAIL:", 
                 key="campo_neutro_user",
-                placeholder="Ej: 12345678k"
+                placeholder="Ej: 12345678k",
+                autocomplete="off"
             ).strip().lower()
             
-            # Usamos text_input común (tipo texto plano para el navegador) con clase de enmascaramiento CSS
+            # 🛡️ CONTRASEÑA BLINDADA: Usamos text_input común con clase CSS de enmascaramiento para evitar menús desplegables
             st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
             input_clave = st.text_input(
                 "CONTRASEÑA DE ACCESO:", 
                 key="campo_neutro_pass",
-                placeholder="••••••••"
+                placeholder="••••••••",
+                autocomplete="off"
             )
             st.markdown('</div>', unsafe_allow_html=True)
             
@@ -714,7 +717,8 @@ if not st.session_state.usuario_conectado:
                 rut_olvido = st.text_input(
                     "Ingrese su RUT para Alerta (Sin puntos ni guñón):", 
                     placeholder="Ej: 174031711", 
-                    key="recup_rut_input"
+                    key="recup_rut_input",
+                    autocomplete="off"
                 ).strip().lower()
                 
                 if st.form_submit_button("Enviar Alerta Express de Cambio", use_container_width=True):
@@ -746,8 +750,12 @@ with st.sidebar:
     def render_sidebar_password_change():
         with st.expander(" Cambiar mi Contraseña", expanded=False):
             with st.form("form_cambio_clave_universal", clear_on_submit=True):
-                nueva_p1 = st.text_input("Nueva Contraseña:", type="password", key="univ_p1")
-                nueva_p2 = st.text_input("Confirmar Contraseña:", type="password", key="univ_p2")
+                # También protegemos el cambio de clave en el menú lateral
+                st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
+                nueva_p1 = st.text_input("Nueva Contraseña:", key="univ_p1", autocomplete="off", placeholder="••••••••")
+                nueva_p2 = st.text_input("Confirmar Contraseña:", key="univ_p2", autocomplete="off", placeholder="••••••••")
+                st.markdown('</div>', unsafe_allow_html=True)
+                
                 if st.form_submit_button("Guardar Nueva Clave", use_container_width=True):
                     if nueva_p1 and nueva_p1 == nueva_p2 and len(nueva_p1) >= 4:
                         try:
@@ -768,8 +776,12 @@ with st.sidebar:
         def render_admin_tools():
             with st.expander(" Registrar Nuevo Operario", expanded=False):
                 with st.form("form_registro_interno_admin", clear_on_submit=True):
-                    reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut").strip().lower()
-                    reg_clave = st.text_input("Contraseña inicial:", type="password", key="admin_reg_pass")
+                    reg_rut = st.text_input("RUT Cosechador:", placeholder="Ej: 123456789", key="admin_reg_rut", autocomplete="off").strip().lower()
+                    
+                    st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
+                    reg_clave = st.text_input("Contraseña inicial:", key="admin_reg_pass", autocomplete="off", placeholder="••••••••")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
                     if st.form_submit_button("Crear Operario", use_container_width=True):
                         if reg_rut and len(reg_clave) >= 4:
                             try:
@@ -785,7 +797,7 @@ with st.sidebar:
             
             with st.expander("🗑️ Eliminar Cuenta de Operario", expanded=False):
                 with st.form("form_eliminar_operario", clear_on_submit=True):
-                    rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut").strip().lower()
+                    rut_a_borrar = st.text_input("RUT a eliminar (Sin puntos ni guión):", placeholder="Ej: 123456789", key="del_rut", autocomplete="off").strip().lower()
                     confirmar_check = st.checkbox("Confirmo que deseo borrar permanentemente este usuario.")
                     if st.form_submit_button("Eliminar de la Nube", use_container_width=True):
                         if rut_a_borrar and confirmar_check:
@@ -810,7 +822,11 @@ with st.sidebar:
                     else:
                         for s in lista_sol:
                             st.warning(f"⚠️ Usuario: {s['usuario']}")
-                            nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", type="password", key=f"express_{s['usuario']}")
+                            
+                            st.markdown('<div class="mascara-pass">', unsafe_allow_html=True)
+                            nueva_clave_express = st.text_input(f"Nueva clave para {s['usuario']}:", key=f"express_{s['usuario']}", autocomplete="off", placeholder="••••••••")
+                            st.markdown('</div>', unsafe_allow_html=True)
+                            
                             if st.button(f"Forzar cambio para {s['usuario']}", key=f"btn_exp_{s['usuario']}", use_container_width=True):
                                 if len(nueva_clave_express) >= 4:
                                     db.collection("usuarios").document(s["usuario"]).update({"password": nueva_clave_express})
@@ -828,7 +844,6 @@ with st.sidebar:
         st.session_state.rol_usuario = "operario"
         st.session_state.id_usuario_activo = ""
         st.rerun()
-
 # ==================================================================
 # ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
 # ==================================================================
@@ -1458,9 +1473,11 @@ with col_derecha_consolidacion:
                     import datetime
                     import zoneinfo
                     tz_local = zoneinfo.ZoneInfo("America/Santiago")
-                    hoy = datetime.date.today()
-                    inicio_hoy = datetime.datetime.combine(hoy, datetime.time.min, tzinfo=tz_local)
-                    fin_hoy = datetime.datetime.combine(hoy, datetime.time.max, tzinfo=tz_local)
+                    fecha_hoy_chile = datetime.datetime.now(tz_local).date()
+                    filtro_fecha = st.date_input("Selecciona la fecha para el historial:", value=fecha_hoy_chile)
+                    inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
+                    fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
+                    
                     
                     docs_hoy = db.collection("cosecha_diaria")\
                                .where("fecha_registro", ">=", inicio_hoy)\
@@ -1668,7 +1685,7 @@ with tab_auditoria:
         st.markdown("---")
         st.info("✏️ **Modo Edición Activado:** Haz doble clic sobre cualquier celda de la tabla inferior para modificar sus valores. Al terminar, presiona el botón de guardar para actualizar la base de datos en la nube.")
         
-        # Pasamos el dataframe filtrado a la vista (el id de firebase y es_merma_bool siguen estando en df_ver por debajo)
+        # Pasamos el dataframe filtrado a la vista
         df_editado_vista = st.data_editor(
             df_ver[cols_presentes], 
             use_container_width=True, 
@@ -1690,9 +1707,12 @@ with tab_auditoria:
                     total_filas = len(df_editado_vista)
                     
                     for idx, row in df_editado_vista.iterrows():
-                        # Recuperamos el ID oculto y es_merma_bool original utilizando el índice de la fila
+                        # Recuperamos el ID oculto utilizando el índice de la fila
                         doc_id = df_ver.iloc[idx].get("id_documento_firebase")
-                        merma_original = bool(df_ver.iloc[idx].get("es_merma_bool", False))
+                        
+                        # 🛠️ CORRECCIÓN CLAVE: Detectamos automáticamente si es merma según lo que el usuario escribió en la tabla
+                        familia_actualizada = str(row.get("familia flor", "")).strip()
+                        es_merma_calculada = familia_actualizada.lower() == "merma"
                         
                         if doc_id:
                             datos_actualizados = {
@@ -1702,20 +1722,22 @@ with tab_auditoria:
                                 "codigo_contratista": str(row.get("cód. contratista", "")).strip(),
                                 "centro_costo": str(row.get("centro de costo", "")).strip(),
                                 "codigo_centro_costo": str(row.get("cód. c. costo", "")).strip(),
-                                "familia_flor": str(row.get("familia flor", "")).strip(),
+                                "familia_flor": familia_actualizada,
                                 "variedad_flor": str(row.get("variedad", "")).strip(),
                                 "codigo_flor": str(row.get("cód. flor", "")).strip(),
                                 "cantidad_varas": int(row.get("varas", 0)),
-                                "es_merma": merma_original
+                                "es_merma": es_merma_calculada  # Se actualiza dinámicamente
                             }
                             db.collection("cosecha_diaria").document(doc_id).update(datos_actualizados)
                         
                         progreso = int(((idx + 1) / total_filas) * 100)
                         barra_progreso.progress(progreso, text=f"Actualizando registro {idx + 1} de {total_filas}...")
                     
-                    # Actualizamos el estado interno combinando la vista editada con los IDs ocultos
+                    # Actualizamos también el estado interno para que refleje el nuevo bool de merma de inmediato
                     df_ver.update(df_editado_vista)
+                    df_ver["es_merma_bool"] = df_ver["familia flor"].astype(str).str.strip().str.lower() == "merma"
                     st.session_state["df_auditoria_activo"] = df_ver
+                    
                     st.success("✅ ¡Todos los cambios fueron guardados y sincronizados correctamente en Firebase!")
                     st.rerun()
                     
@@ -1733,24 +1755,48 @@ with tab_auditoria:
     fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
         
     col_admin_kame, col_admin_vale = st.columns(2)
+
     with col_admin_kame:
-        st.markdown("### Planilla Contable")
-        if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
-            try:
-                query = db.collection("cosecha_diaria").where("FechaRegistro", ">=", inicio_dia).where("FechaRegistro", "<=", fin_dia)
-                if filtro_rut: 
-                    query = query.where("RutCosechador", "==", filtro_rut.replace(".", "").replace("-", "").strip().lower())
-                docs = query.order_by("FechaRegistro", direction=firestore.Query.DESCENDING).stream()
-                lista_datos = [doc.to_dict() for doc in docs]
-                if not lista_datos: 
-                    st.warning("⚠️ No se encontraron registros.")
-                else:
-                    df_admin = pd.DataFrame(lista_datos)
-                    columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
-                    csv_kame = df_admin[columnas_kame].groupby(["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], as_index=False)["CantidadVaras"].sum().to_csv(index=False, sep=";").encode('utf-8')
-                    st.success("Planilla generada con éxito.")
-                    st.download_button(label="📥 DESCARGAR PLANILLA KAME", data=csv_kame, file_name=f"KAME_Cosecha_{filtro_fecha}.csv", mime="text/csv", use_container_width=True)
-            except Exception as e: st.error(f"Error: {e}")
+            st.markdown("### Planilla Contable")
+            if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
+                try:
+                    # Verificamos si tenemos datos activos en la sesión (la misma tabla que ya estás viendo y auditando)
+                    if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
+                        df_kame_source = st.session_state["df_auditoria_activo"].copy()
+                    
+                        # Mapeamos los campos actuales del DataFrame a los nombres que KAME necesita
+                        df_kame_source["CentroCosto"] = df_kame_source.get("centro_de_costo", df_kame_source.get("centro_costo", ""))
+                        df_kame_source["RutContratista"] = df_kame_source.get("rut_contratista", "")
+                        df_kame_source["ContratistaNombre"] = df_kame_source.get("contratista_nombre", df_kame_source.get("contratista", ""))
+                        df_kame_source["RutCosechador"] = df_kame_source.get("rut_cosechador", "")
+                        df_kame_source["CodigoArticulo"] = df_kame_source.get("codigo_flor", "")
+                        df_kame_source["DescripcionArticulo"] = df_kame_source.get("variedad_flor", df_kame_source.get("variedad", ""))
+                        df_kame_source["CantidadVaras"] = df_kame_source.get("cantidad_varas", df_kame_source.get("varas", 0)).astype(int)
+
+                        columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
+                    
+                        # Validamos que existan las columnas esenciales antes de agrupar
+                        cols_presentes_kame = [c for c in columnas_kame if c in df_kame_source.columns]
+                    
+                        df_agrupado_kame = df_kame_source[cols_presentes_kame].groupby(
+                            ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "CodigoArticulo", "DescripcionArticulo"], 
+                            as_index=False
+                        )["CantidadVaras"].sum()
+
+                        csv_kame = df_agrupado_kame.to_csv(index=False, sep=";").encode('utf-8')
+                    
+                        st.success("Planilla generada con éxito.")
+                        st.download_button(
+                            label="📥 DESCARGAR PLANILLA KAME", 
+                            data=csv_kame, 
+                            file_name=f"KAME_Cosecha_{filtro_fecha}.csv", 
+                            mime="text/csv", 
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("⚠️ No hay registros en memoria. Ejecuta primero la 'Búsqueda en la Nube' arriba.")
+                except Exception as e: 
+                    st.error(f"Error al procesar KAME: {e}")
 
     with col_admin_vale:
         st.markdown("### Opciones de Impresión")
@@ -1764,23 +1810,18 @@ with tab_auditoria:
                 if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
                     df_fuente = st.session_state["df_auditoria_activo"]
                 
-                    # 🌸 Separamos flores de producción (es_merma_bool == False / NaN) y mermas (es_merma_bool == True)
-                    if "es_merma_bool" in df_fuente.columns:
-                        df_flores_prod = df_fuente[df_fuente["es_merma_bool"] != True]
-                        df_flores_mermas = df_fuente[df_fuente["es_merma_bool"] == True]
-                    else:
-                        df_flores_prod = df_fuente
-                        df_flores_mermas = pd.DataFrame(columns=df_fuente.columns)
+                    # 🌸 🛠️ Separamos producción y mermas evaluando en tiempo real si dice "Merma" en la familia de flor
+                    df_fuente["es_merma_eval"] = df_fuente["familia flor"].astype(str).str.strip().str.lower() == "merma"
+                    
+                    df_flores_prod = df_fuente[df_fuente["es_merma_eval"] == False]
+                    df_flores_mermas = df_fuente[df_fuente["es_merma_eval"] == True]
 
                     df_vale_prod = df_flores_prod.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
                     df_vale_merma = df_flores_mermas.groupby(["rut operario", "familia flor", "variedad"], as_index=False)["varas"].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut operario", "familia flor", "variedad", "varas"])
                 
                     # 🧠 Lógica inteligente para evaluar si los campos son únicos o múltiples/abiertos
                     fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
-                    if len(fechas_unicas) == 1:
-                        str_fecha = str(fechas_unicas[0])
-                    else:
-                        str_fecha = "Todas las fechas"
+                    str_fecha = str(fechas_unicas[0]) if len(fechas_unicas) == 1 else "Todas las fechas"
                     
                     ccs_unicos = df_fuente["centro de costo"].unique() if "centro de costo" in df_fuente.columns else []
                     str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
@@ -1916,7 +1957,7 @@ with tab_auditoria:
         if st.session_state.html_vale_actual: 
             st.markdown("---")
             st.markdown("##### Vista Previa del Comprobante:")
-            st.html(st.session_state.html_vale_actual)
+            st.html(st.session_state.html_vale_actual)    
 
     # ==================================================================
     # F. PANEL DE CONFIGURACIÓN DEL CATÁLOGO DIRECTO EN LA NUBE
@@ -1977,14 +2018,14 @@ with tab_auditoria:
         if familia_seleccionada == "➕ Crear Nueva Familia...":
             nueva_familia_input = st.text_input(
                 "📝 Escriba el nombre de la nueva Familia:",
-                placeholder="Ej: Anémonas, Tulipanes...",
+                placeholder="Ej: ANÉMONAS, TULIPANES...",
                 key="input_nueva_familia_auditoria"
             ).strip()
             familia_final = nueva_familia_input
         else:
             familia_final = familia_seleccionada
-        nuevo_codigo = st.text_input("Código de Artículo (Kame ERP):", placeholder="Ej: PB-PEONIA-04", key="in_flor_cod").strip()
-        nuevo_nombre = st.text_input("Nombre de la Variedad:", placeholder="Ej: Sarah Bernhardt", key="in_flor_nom").strip()
+        nuevo_codigo = st.text_input("Código de Artículo (Kame ERP):", placeholder="Ej: PB-ROSA-01", key="in_flor_cod").strip()
+        nuevo_nombre = st.text_input("Nombre de la Variedad:", placeholder="Ej: PB ROSA HOT PARIS", key="in_flor_nom").strip()
         nuevo_color = st.color_picker("Color de Identificación Visual:", "#FA819F", key="picker_color_flor")
         if st.button("💾 Guardar Nueva Variedad", type="primary", use_container_width=True, key="btn_guardar_nueva_flor"):
             if not familia_final:
@@ -2009,7 +2050,8 @@ with tab_auditoria:
         with st.form("form_add_merma", clear_on_submit=True):
             st.markdown("### ➕ Registrar Nueva Merma")
             nueva_merma_codigo = st.text_input("Código de Merma:", placeholder="Ej: MH01", key="in_merma_cod").strip()
-            nueva_merma_nombre = st.text_input("Descripción / Nombre de la Merma:", placeholder="Ej: Ranunculus", key="in_merma_nom").strip()
+            nueva_merma_nombre = st.text_input("Descripción / Nombre de la Merma:", placeholder="Ej: MERMA HUERTO ROSA", key="in_merma_nom").strip()
+            nueva_merma_familia = st.text_input("Familia:", placeholder="Ej: ROSA", key="in_merma_fam").strip()
                 
             if st.form_submit_button("Registrar Merma", use_container_width=True):
                 if nueva_merma_codigo and nueva_merma_nombre:
@@ -2017,6 +2059,7 @@ with tab_auditoria:
                         db.collection("merma").add({
                             "codigo": nueva_merma_codigo,
                             "merma": nueva_merma_nombre,
+                            "familia": nueva_merma_familia,
                             "fecha_creacion": datetime.datetime.now()
                         })
                         st.success(f"✅ Merma '{nueva_merma_nombre}' (Código: {nueva_merma_codigo}) registrada correctamente en la colección 'merma'.")

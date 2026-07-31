@@ -1370,6 +1370,10 @@ with col_derecha_consolidacion:
         else:
             st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
                 
+        # 🚢 Apartado para seleccionar de qué nave se obtuvo el balde (del 1 al 12)
+        naves_opciones = [f"Nave {i}" for i in range(1, 13)]
+        nave_seleccionada_meson = st.selectbox("🚢 Seleccionar Nave:", options=naves_opciones, key="select_nave_meson")
+
         st.caption("⚙️ Edita varas:")
                 
         col_m1, col_m2, col_m3 = st.columns([1.2, 2.2, 1.2])
@@ -1400,35 +1404,31 @@ with col_derecha_consolidacion:
         tiene_flor = st.session_state.flor_seleccionada_meson is not None
         bloq_f = not (tiene_rut and tiene_flor)
 
-# 🎯 VALIDACIÓN DE SEGURIDAD OPERATIVA
-        tiene_rut = st.session_state.get("rut_cosechador", "") != ""
-        tiene_flor = st.session_state.flor_seleccionada_meson is not None
-        bloq_f = not (tiene_rut and tiene_flor)
-                
+        # 🎯 VALIDACIÓN DE SEGURIDAD OPERATIVA
         st.markdown('<div class="btn-verde">', unsafe_allow_html=True)
         if st.button("✅ Confirmar e Inyectar", key="btn_inj", use_container_width=True, disabled=bloq_f):
             try:
                 import datetime
                 import zoneinfo
                 
-                        
-                # A. Recuperamos datos del estado de la tablet (respetando sus mayúsculas originales)
+                # A. Recuperamos datos del estado de la tablet
                 cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
                 contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
                         
-                # 🔍 NUEVO: Buscamos de forma automática el nombre del cosechero registrado previamente en el día
+                # 🔍 Buscamos de forma automática el nombre del cosechador registrado previamente en el día
                 rut_limpio_busqueda = st.session_state.get("rut_cosechador", "").strip().lower()
                 nombre_cosechador_encontrado = "Sin Nombre"
                 
+                tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+
                 try:
-                    tz_cl_busqueda = zoneinfo.ZoneInfo("America/Santiago")
-                    fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl_busqueda).strftime("%Y-%m-%d")
+                    fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
                     
                     credenciales_query = db.collection("credenciales_activas_dia")\
                         .where("FechaFiltro", "==", fecha_hoy_busqueda_str)\
                         .where("RutCosechador", "==", rut_limpio_busqueda)\
                         .limit(1).get()
-                        
+                            
                     if credenciales_query:
                         nombre_cosechador_encontrado = credenciales_query[0].to_dict().get("NombreCosechador", "Sin Nombre")
                 except Exception:
@@ -1473,15 +1473,15 @@ with col_derecha_consolidacion:
                     variedad_final = item_seleccionado["nombre"]
                     codigo_articulo = str(item_seleccionado["codigo"])
                         
-                # E. Envío estructurado a Firestore incluyendo el nombre del cosechero y fecha filtro
-                tz_envio = zoneinfo.ZoneInfo("America/Santiago")
-                ahora_envio = datetime.datetime.now(tz_envio)
+                # E. Envío estructurado a Firestore con hora exacta de Chile forzada
+                ahora_envio = datetime.datetime.now(tz_cl)
                 
                 db.collection("cosecha_diaria").add({
                     "fecha_registro": ahora_envio,
                     "FechaFiltro": ahora_envio.strftime("%Y-%m-%d"),
                     "rut_cosechador": st.session_state.rut_cosechador.upper(),
                     "nombre_cosechador": nombre_cosechador_encontrado,
+                    "nave": nave_seleccionada_meson,
 
                     "contratista_nombre": contratista_nombre,
                     "rut_contratista": rut_contratista_real,
@@ -1519,133 +1519,140 @@ with col_derecha_consolidacion:
         st.markdown('</div>', unsafe_allow_html=True)
 
 
-# Historial Diario de Terreno
+        # Historial Diario de Terreno
         st.write("")
         st.markdown(
-            "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google"
-            " Cloud)</h3>",
+            "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>",
             unsafe_allow_html=True,
         )
 
 
         @st.fragment
         def fragmento_historial_dia_terreno():
-          # ⚡ Si la lista está vacía en caché, intentamos consultar Firestore directamente una vez para inicializarla
-          if (
-              "lista_datos_dia_cache" not in st.session_state
-              or not st.session_state["lista_datos_dia_cache"]
-          ):
-            try:
-              import datetime
-              import zoneinfo
+            if (
+                "lista_datos_dia_cache" not in st.session_state
+                or not st.session_state["lista_datos_dia_cache"]
+            ):
+                try:
+                    import datetime
+                    import zoneinfo
 
-              tz_local = zoneinfo.ZoneInfo("America/Santiago")
-              fecha_hoy_chile = datetime.datetime.now(tz_local).date()
+                    tz_local = zoneinfo.ZoneInfo("America/Santiago")
+                    fecha_hoy_chile = datetime.datetime.now(tz_local).date()
 
-              # 1. Selector de fecha en Streamlit para el usuario
-              filtro_fecha = st.date_input(
-                  "Selecciona la fecha para el historial:", value=fecha_hoy_chile, key="filtro_fecha_historial_meson"
-              )
+                    # 1. Selector de fecha en Streamlit para el usuario
+                    filtro_fecha = st.date_input(
+                        "Selecciona la fecha para el historial:", value=fecha_hoy_chile, key="filtro_fecha_historial_meson"
+                    )
 
-              # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD' para buscar el día exacto
-              filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
+                    # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD'
+                    filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
 
-              # 3. Consulta limpia a Firestore usando FechaFiltro (más seguro y compatible)
-              docs_hoy = (
-                  db.collection("cosecha_diaria")
-                  .where("FechaFiltro", "==", filtro_fecha_str)
-                  .stream()
-              )
+                    # 3. Consulta a Firestore usando FechaFiltro
+                    docs_hoy = (
+                        db.collection("cosecha_diaria")
+                        .where("FechaFiltro", "==", filtro_fecha_str)
+                        .stream()
+                    )
 
-              st.session_state["lista_datos_dia_cache"] = [
-                  doc.to_dict() for doc in docs_hoy
-              ]
-            except Exception as e_carga:
-              st.session_state["lista_datos_dia_cache"] = []
+                    st.session_state["lista_datos_dia_cache"] = [
+                        doc.to_dict() for doc in docs_hoy
+                    ]
+                except Exception as e_carga:
+                    st.session_state["lista_datos_dia_cache"] = []
 
-          lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
+            lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
 
-          if lista_operario_real:
-            try:
-              df_op = pd.DataFrame(lista_operario_real)
+            if lista_operario_real:
+                try:
+                    df_op = pd.DataFrame(lista_operario_real)
 
-              col_rut = (
-                  "rut_cosechador"
-                  if "rut_cosechador" in df_op.columns
-                  else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
-              )
-              col_nombre = (
-                  "nombre_cosechador"
-                  if "nombre_cosechador" in df_op.columns
-                  else ("NombreCosechador" if "NombreCosechador" in df_op.columns else None)
-              )
-              col_familia = (
-                  "familia_flor" if "familia_flor" in df_op.columns else None
-              )
-              col_variedad = (
-                  "variedad_flor"
-                  if "variedad_flor" in df_op.columns
-                  else (
-                      "DescripcionArticulo"
-                      if "DescripcionArticulo" in df_op.columns
-                      else None
-                  )
-              )
-              col_varas = (
-                  "cantidad_varas"
-                  if "cantidad_varas" in df_op.columns
-                  else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
-              )
-              col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
+                    col_rut = (
+                        "rut_cosechador"
+                        if "rut_cosechador" in df_op.columns
+                        else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
+                    )
+                    col_nombre = (
+                        "nombre_cosechador"
+                        if "nombre_cosechador" in df_op.columns
+                        else ("NombreCosechador" if "NombreCosechador" in df_op.columns else None)
+                    )
+                    col_nave = "nave" if "nave" in df_op.columns else None
+                    col_familia = (
+                        "familia_flor" if "familia_flor" in df_op.columns else None
+                    )
+                    col_variedad = (
+                        "variedad_flor"
+                        if "variedad_flor" in df_op.columns
+                        else (
+                            "DescripcionArticulo"
+                            if "DescripcionArticulo" in df_op.columns
+                            else None
+                        )
+                    )
+                    col_varas = (
+                        "cantidad_varas"
+                        if "cantidad_varas" in df_op.columns
+                        else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
+                    )
+                    col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
+                    col_fecha_reg = "fecha_registro" if "fecha_registro" in df_op.columns else None
 
-              if col_rut and col_variedad and col_varas:
-                import __main__ as main
+                    if col_rut and col_variedad and col_varas:
+                        import __main__ as main
 
-                if hasattr(main, "formatear_rut_chileno_completo"):
-                  df_op[col_rut] = df_op[col_rut].apply(
-                      lambda x: main.formatear_rut_chileno_completo(x)
-                      if pd.notnull(x)
-                      else x
-                  )
+                        if hasattr(main, "formatear_rut_chileno_completo"):
+                            df_op[col_rut] = df_op[col_rut].apply(
+                                lambda x: main.formatear_rut_chileno_completo(x)
+                                if pd.notnull(x)
+                                else x
+                            )
 
-                agrupadores = [col_rut]
-                if col_nombre and col_nombre in df_op.columns:
-                    agrupadores.append(col_nombre)
-                if col_familia and col_familia in df_op.columns:
-                  agrupadores.append(col_familia)
-                agrupadores.append(col_variedad)
-                if col_es_merma and col_es_merma in df_op.columns:
-                  agrupadores.append(col_es_merma)
+                        # Omitimos completamente la creación de la columna "Hora" para la vista de la tabla.
+                        df_op_render = df_op.copy()
 
-                df_op_render = df_op.groupby(agrupadores, as_index=False)[
-                    col_varas
-                ].sum()
+                        # 🚫 SE ELIMINÓ LA HORA DE LA TABLA (Ya no se incluye "Hora" en columnas_a_mostrar)
+                        columnas_a_mostrar = []
+                        renombre_columnas = {}
 
-                renombre_columnas = {
-                    col_rut: "RUT Cosechador",
-                    col_variedad: "Variedad / Detalle",
-                    col_varas: "Cantidad Varas",
-                }
-                if col_nombre:
-                    renombre_columnas[col_nombre] = "Nombre Cosechador"
-                if col_familia:
-                  renombre_columnas[col_familia] = "Familia"
-                if col_es_merma:
-                  renombre_columnas[col_es_merma] = "¿Es Merma?"
+                        if col_rut:
+                            columnas_a_mostrar.append(col_rut)
+                            renombre_columnas[col_rut] = "RUT Cosechador"
+                        if col_nombre and col_nombre in df_op_render.columns:
+                            columnas_a_mostrar.append(col_nombre)
+                            renombre_columnas[col_nombre] = "Nombre Cosechador"
+                        if col_nave and col_nave in df_op_render.columns:
+                            columnas_a_mostrar.append(col_nave)
+                            renombre_columnas[col_nave] = "Nave"
+                        if col_familia and col_familia in df_op_render.columns:
+                            columnas_a_mostrar.append(col_familia)
+                            renombre_columnas[col_familia] = "Familia"
+                        if col_variedad:
+                            columnas_a_mostrar.append(col_variedad)
+                            renombre_columnas[col_variedad] = "Variedad / Detalle"
+                        if col_varas:
+                            columnas_a_mostrar.append(col_varas)
+                            renombre_columnas[col_varas] = "Cantidad Varas"
+                        if col_es_merma and col_es_merma in df_op_render.columns:
+                            columnas_a_mostrar.append(col_es_merma)
+                            renombre_columnas[col_es_merma] = "¿Es Merma?"
 
-                df_op_render = df_op_render.rename(columns=renombre_columnas)
+                        df_op_render = df_op_render[columnas_a_mostrar].rename(columns=renombre_columnas)
 
-                st.dataframe(df_op_render, use_container_width=True, hide_index=True)
-              else:
-                st.warning(
-                    "⚠️ No se encontraron las columnas esperadas en los datos del"
-                    " servidor."
-                )
+                        # Ordenar por fecha_registro descendente si la columna existe para mantener lo más nuevo arriba
+                        if col_fecha_reg in df_op.columns:
+                            df_op_render = df_op_render.iloc[df_op[col_fecha_reg].argsort()[::-1]]
 
-            except Exception as e_tabla:
-              st.caption(f"⚠️ Nota de visualización: {e_tabla}")
-          else:
-            st.info("📝 No hay registros cargados hoy en este mesón.")
+                        st.dataframe(df_op_render, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning(
+                            "⚠️ No se encontraron las columnas esperadas en los datos del servidor."
+                        )
+
+                except Exception as e_tabla:
+                    st.caption(f"⚠️ Nota de visualización: {e_tabla}")
+            else:
+                st.info("📝 No hay registros cargados hoy en este mesón.")
 
 
         fragmento_historial_dia_terreno()

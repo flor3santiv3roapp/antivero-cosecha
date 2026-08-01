@@ -1384,7 +1384,7 @@ with col_derecha_consolidacion:
                         
         with col_m2:
             varas_puente = st.number_input(
-                "Varas:", min_value=0, max_value=500,
+                "Varas:", min_value=0, max_value=1500,
                 value=int(st.session_state.get("cantidad_varas_meson", 30)),
                 step=1, label_visibility="collapsed"
             )
@@ -1395,7 +1395,7 @@ with col_derecha_consolidacion:
                         
         with col_m3:
             if st.button("+5", key="btn_m_mas_5_final_fijo", use_container_width=True):
-                st.session_state.cantidad_varas_meson = min(500, st.session_state.get("cantidad_varas_meson", 30) + 5)
+                st.session_state.cantidad_varas_meson = min(1500, st.session_state.get("cantidad_varas_meson", 30) + 5)
                 st.rerun()
 
         st.write("")

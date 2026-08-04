@@ -1143,7 +1143,7 @@ with tab_terminal:
     # 🚀 CONTENEDOR 1: División máster horizontal de la pantalla de la tablet
     col_panel_izq, col_panel_central_derecho = st.columns([1.2, 2.8])
     
-with col_panel_izq:
+    with col_panel_izq:
         @st.fragment
         def fragmento_lector_ficha_express():
             st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>📌 Lector de Ficha Express</h3>", unsafe_allow_html=True)
@@ -1281,7 +1281,7 @@ with col_panel_izq:
                         st.session_state.cantidad_varas_meson = 30
                         st.rerun()
         
-with col_panel_central_derecho:
+    with col_panel_central_derecho:
         if "flor_seleccionada_meson" not in st.session_state: 
             st.session_state.flor_seleccionada_meson = None
         if "cantidad_varas_meson" not in st.session_state: 
@@ -1289,373 +1289,396 @@ with col_panel_central_derecho:
             
         col_centro_flujo, col_derecha_consolidacion = st.columns([1.6, 1.2])
         
-with col_centro_flujo:
-        st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>🌸 Selección de Familia de Flores</h3>", unsafe_allow_html=True)
-        st.caption("Toque una familia para desplegar sus variedades en el mesón:")
-        
-        st.html("<style>button[key^='btn_grid_fam_'] { border-radius:8px !important; padding:12px !important; font-weight:bold !important; font-size:15px !important; }</style>")
-        
-        familias_lista = list(diccionario_flores_dinamico.keys()) if diccionario_flores_dinamico else ["RANÚNCULO", "PEONÍA", "DELPHINIUM", "SNAPDRAGON"]
-        
-        for i in range(0, len(familias_lista), 2):
-            par_familias = familias_lista[i:i+2]
-            cols_fam = st.columns(2)
-            for idx, fam_item in enumerate(par_familias):
-                with cols_fam[idx]:
-                    es_activa = (st.session_state.familia_activa_meson == fam_item)
-                    tipo_b = "primary" if es_activa else "secondary"
-                    prefix = "🌿 " if "DELPHINIUM" in fam_item else "🌸 "
-                    
-                    if st.button(f"{prefix}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_b):
-                        st.session_state.familia_activa_meson = fam_item
-                        st.rerun()
-        
-        st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
-        
-        # --- RENDERIZADO UNIFICADO DE VARIEDADES DE FLORES ---
-        familia_actual = st.session_state.familia_activa_meson
-        lista_flores_render = diccionario_flores_dinamico.get(familia_actual, []) if diccionario_flores_dinamico else []
-        
-        if lista_flores_render:
-            st.markdown(f"<p style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>Variedades activas en {familia_actual}:</p>", unsafe_allow_html=True)
+        with col_centro_flujo:
+            st.markdown("<h3 style='margin:0 0 5px 0; color:#38bdf8;'>🌸 Selección de Familia de Flores</h3>", unsafe_allow_html=True)
+            st.caption("Toque una familia para desplegar sus variedades en el mesón:")
             
-            for i in range(0, len(lista_flores_render), 2):
-                bloque_par = lista_flores_render[i:i+2]
-                cols_f = st.columns(2)
-                for idx_f, flor in enumerate(bloque_par):
-                    indice_absoluto = i + idx_f
-                    with cols_f[idx_f]:
-                        cod_f, nom_f = flor["codigo"], flor["nombre"]
-                        color_real = flor.get("color", "#ec4899")
+            st.html("<style>button[key^='btn_grid_fam_'] { border-radius:8px !important; padding:12px !important; font-weight:bold !important; font-size:15px !important; }</style>")
+            
+            familias_lista = list(diccionario_flores_dinamico.keys()) if diccionario_flores_dinamico else ["RANÚNCULO", "PEONÍA", "DELPHINIUM", "SNAPDRAGON"]
+            
+            for i in range(0, len(familias_lista), 2):
+                par_familias = familias_lista[i:i+2]
+                cols_fam = st.columns(2)
+                for idx, fam_item in enumerate(par_familias):
+                    with cols_fam[idx]:
+                        es_activa = (st.session_state.familia_activa_meson == fam_item)
+                        tipo_b = "primary" if es_activa else "secondary"
+                        prefix = "🌿 " if "DELPHINIUM" in fam_item else "🌸 "
                         
-                        tiene_rut = st.session_state.get("rut_cosechador", "") != ""
-                        
-                        # 1. Tarjeta visual limpia con el color de Firebase y el código KAME debajo
-                        st.html(f"""
-                        <div style="background-color: #1e2530; border: 1px solid #2d3748; border-radius: 12px; padding: 12px 14px; margin-bottom: 4px; border-left: 6px solid {color_real};">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                                <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_real}; border-radius: 50%; box-shadow: 0 0 5px {color_real}; flex-shrink: 0;"></span>
-                                <span style="color: #ffffff; font-size: 15px; font-weight: bold; font-family: system-ui, -apple-system, sans-serif;">{nom_f}</span>
-                            </div>
-                            <div style="color: #94a3b8; font-size: 12px; margin-left: 20px; font-family: system-ui, -apple-system, sans-serif;">Código KAME: {cod_f}</div>
-                        </div>
-                        """)
-                        
-                        # 2. Botón limpio para seleccionar la variedad
-                        if st.button(f"Seleccionar {nom_f}", key=f"btn_var_real_{cod_f}_{indice_absoluto}", use_container_width=True, disabled=not tiene_rut):
-                            st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f, "color": color_real, "es_merma": False}
-                            st.session_state.cantidad_varas_meson = 30
+                        if st.button(f"{prefix}{fam_item}", key=f"btn_grid_fam_{fam_item.replace(' ', '_')}", use_container_width=True, type=tipo_b):
+                            st.session_state.familia_activa_meson = fam_item
                             st.rerun()
+            
+            st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
+            
+            # --- RENDERIZADO UNIFICADO DE VARIEDADES DE FLORES ---
+            familia_actual = st.session_state.familia_activa_meson
+            lista_flores_render = diccionario_flores_dinamico.get(familia_actual, []) if diccionario_flores_dinamico else []
+            
+            if lista_flores_render:
+                st.markdown(f"<p style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>Variedades activas en {familia_actual}:</p>", unsafe_allow_html=True)
+                
+                for i in range(0, len(lista_flores_render), 2):
+                    bloque_par = lista_flores_render[i:i+2]
+                    cols_f = st.columns(2)
+                    for idx_f, flor in enumerate(bloque_par):
+                        indice_absoluto = i + idx_f
+                        with cols_f[idx_f]:
+                            cod_f, nom_f = flor["codigo"], flor["nombre"]
+                            color_real = flor.get("color", "#ec4899")
+                            
+                            tiene_rut = st.session_state.get("rut_cosechador", "") != ""
+                            
+                            # 1. Tarjeta visual limpia con el color de Firebase y el código KAME debajo
+                            st.html(f"""
+                            <div style="background-color: #1e2530; border: 1px solid #2d3748; border-radius: 12px; padding: 12px 14px; margin-bottom: 4px; border-left: 6px solid {color_real};">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                                    <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_real}; border-radius: 50%; box-shadow: 0 0 5px {color_real}; flex-shrink: 0;"></span>
+                                    <span style="color: #ffffff; font-size: 15px; font-weight: bold; font-family: system-ui, -apple-system, sans-serif;">{nom_f}</span>
+                                </div>
+                                <div style="color: #94a3b8; font-size: 12px; margin-left: 20px; font-family: system-ui, -apple-system, sans-serif;">Código KAME: {cod_f}</div>
+                            </div>
+                            """)
+                            
+                            # 2. Botón limpio para seleccionar la variedad
+                            if st.button(f"Seleccionar {nom_f}", key=f"btn_var_real_{cod_f}_{indice_absoluto}", use_container_width=True, disabled=not tiene_rut):
+                                st.session_state.flor_seleccionada_meson = {"codigo": cod_f, "nombre": nom_f, "color": color_real, "es_merma": False}
+                                st.session_state.cantidad_varas_meson = 30
+                                st.rerun()
 
 
 with col_derecha_consolidacion:
-    st.markdown("<h2 style='color:#f8fafc; margin-top:0;'>📥 Mesón</h2>", unsafe_allow_html=True)
-    rut_aux = st.session_state.get("rut_cosechador", "")
-            
-    if rut_aux and len(rut_aux) > 1:
-        rut_final = f"{rut_aux[:-1]}-{rut_aux[-1]}".upper()
-    else:
-        rut_final = "00.000.000-0"
-            
-    st.html("<style>.columna-meson button { background-color:#0f172a !important; border:2px solid #475569 !important; } .columna-meson button p { color:#f8fafc !important; font-weight:bold !important; } .columna-meson .btn-verde button { background-color:#10b981 !important; border:2px solid #047857 !important; height:50px !important; } .columna-meson .btn-verde button p { color:#0f172a !important; font-size:16px !important; }</style>")
-    st.markdown('<div class="columna-meson">', unsafe_allow_html=True)
-    with st.container(border=True):
-        st.markdown(f"**RUT:** `{rut_final}`")
+            st.markdown("<h2 style='color:#f8fafc; margin-top:0;'>📥 Mesón</h2>", unsafe_allow_html=True)
+            rut_aux = st.session_state.get("rut_cosechador", "")
                 
-        # 🎨 Mostramos un punto coloreado dinámico también en el resumen del mesón
-        if st.session_state.flor_seleccionada_meson:
-            f_sel = st.session_state.flor_seleccionada_meson
-            color_meson = f_sel.get("color", "#38bdf8")
-            st.markdown(f"**Item:** <span style='color:{color_meson}; font-weight:bold;'>● {f_sel['nombre']}</span>", unsafe_allow_html=True)
-        else:
-            st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
+            if rut_aux and len(rut_aux) > 1:
+                rut_final = f"{rut_aux[:-1]}-{rut_aux[-1]}".upper()
+            else:
+                rut_final = "00.000.000-0"
                 
-        # 🚢 Apartado para seleccionar de qué nave se obtuvo el balde (del 1 al 12)
-        naves_opciones = [f"Nave {i}" for i in range(1, 13)]
-        nave_seleccionada_meson = st.selectbox("🚢 Seleccionar Nave:", options=naves_opciones, key="select_nave_meson")
-
-        st.caption("⚙️ Edita varas:")
-                
-        col_m1, col_m2, col_m3 = st.columns([1.2, 2.2, 1.2])
-        with col_m1:
-            if st.button("-5", key="btn_m_menos_5_final_fijo", use_container_width=True):
-                st.session_state.cantidad_varas_meson = max(0, st.session_state.get("cantidad_varas_meson", 30) - 5)
-                st.rerun()
+            st.html("<style>.columna-meson button { background-color:#0f172a !important; border:2px solid #475569 !important; } .columna-meson button p { color:#f8fafc !important; font-weight:bold !important; } .columna-meson .btn-verde button { background-color:#10b981 !important; border:2px solid #047857 !important; height:50px !important; } .columna-meson .btn-verde button p { color:#0f172a !important; font-size:16px !important; }</style>")
+            st.markdown('<div class="columna-meson">', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown(f"**RUT:** `{rut_final}`")
                         
-        with col_m2:
-            varas_puente = st.number_input(
-                "Varas:", min_value=0, max_value=1500,
-                value=int(st.session_state.get("cantidad_varas_meson", 30)),
-                step=1, label_visibility="collapsed"
+                # 🎨 Mostramos un punto coloreado dinámico también en el resumen del mesón
+                if st.session_state.flor_seleccionada_meson:
+                    f_sel = st.session_state.flor_seleccionada_meson
+                    color_meson = f_sel.get("color", "#38bdf8")
+                    st.markdown(f"**Item:** <span style='color:{color_meson}; font-weight:bold;'>● {f_sel['nombre']}</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
+                        
+                # 📍 Apartado para seleccionar el Origen de Huerto desde Firebase (config_origen_huerto)
+                huertos_disponibles = []
+                try:
+                    docs_huertos = db.collection("config_origen_huerto").stream()
+                    for doc in docs_huertos:
+                        d_h = doc.to_dict()
+                        nombre_h = d_h.get("nombre")
+                        if nombre_h:
+                            huertos_disponibles.append(nombre_h)
+                except Exception:
+                    pass
+                
+                # Respaldo por si la colección está vacía inicialmente
+                if not huertos_disponibles:
+                    huertos_disponibles = ["Sin huertos registrados"]
+
+                huerto_seleccionado_meson = st.selectbox("📍 Seleccionar Origen de Huerto:", options=huertos_disponibles, key="select_huerto_meson")
+
+                st.caption("⚙️ Edita varas:")
+                        
+                col_m1, col_m2, col_m3 = st.columns([1.2, 2.2, 1.2])
+                with col_m1:
+                    if st.button("-5", key="btn_m_menos_5_final_fijo", use_container_width=True):
+                        st.session_state.cantidad_varas_meson = max(0, st.session_state.get("cantidad_varas_meson", 30) - 5)
+                        st.rerun()
+                                
+                with col_m2:
+                    varas_puente = st.number_input(
+                        "Varas:", min_value=0, max_value=500,
+                        value=int(st.session_state.get("cantidad_varas_meson", 30)),
+                        step=1, label_visibility="collapsed"
+                    )
+                    if varas_puente != st.session_state.get("cantidad_varas_meson", 30):
+                        st.session_state.cantidad_varas_meson = int(varas_puente)
+                        st.fragment(lambda: None)
+                        st.rerun()
+                                
+                with col_m3:
+                    if st.button("+5", key="btn_m_mas_5_final_fijo", use_container_width=True):
+                        st.session_state.cantidad_varas_meson = min(500, st.session_state.get("cantidad_varas_meson", 30) + 5)
+                        st.rerun()
+
+                st.write("")
+                        
+                tiene_rut = st.session_state.get("rut_cosechador", "") != ""
+                tiene_flor = st.session_state.flor_seleccionada_meson is not None
+                bloq_f = not (tiene_rut and tiene_flor)
+
+                # 🎯 VALIDACIÓN DE SEGURIDAD OPERATIVA
+                st.markdown('<div class="btn-verde">', unsafe_allow_html=True)
+                if st.button("✅ Confirmar e Inyectar", key="btn_inj", use_container_width=True, disabled=bloq_f):
+                    try:
+                        import datetime
+                        import zoneinfo
+                        
+                        # A. Recuperamos datos del estado de la tablet
+                        cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
+                        contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
+                                
+                        # 🔍 Buscamos de forma automática el nombre del cosechador registrado previamente en el día
+                        rut_limpio_busqueda = st.session_state.get("rut_cosechador", "").strip().lower()
+                        nombre_cosechador_encontrado = "Sin Nombre"
+                        
+                        tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+
+                        try:
+                            fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+                            
+                            credenciales_query = db.collection("credenciales_activas_dia")\
+                                .where("FechaFiltro", "==", fecha_hoy_busqueda_str)\
+                                .where("RutCosechador", "==", rut_limpio_busqueda)\
+                                .limit(1).get()
+                                    
+                            if credenciales_query:
+                                nombre_cosechador_encontrado = credenciales_query[0].to_dict().get("NombreCosechador", "Sin Nombre")
+                        except Exception:
+                            pass
+
+                        # B. Buscamos el CÓDIGO real del Centro de Costo en Firestore
+                        codigo_cc_real = "n/a"
+                        try:
+                            cc_docs = db.collection("config_centros_costo").stream()
+                            for doc in cc_docs:
+                                d_cc = doc.to_dict()
+                                if str(d_cc.get("nombre", "")).strip().lower() == cc_nombre.strip().lower():
+                                    codigo_cc_real = d_cc.get("codigo", "n/a")
+                                    break
+                        except Exception:
+                            pass
+                                    
+                        # C. Buscamos el RUT y CÓDIGO real del Contratista en Firestore
+                        rut_contratista_real = "0-0"
+                        codigo_contratista_real = "n/a"
+                        try:
+                            contra_docs = db.collection("config_contratistas").stream()
+                            for doc in contra_docs:
+                                d_cont = doc.to_dict()
+                                if str(d_cont.get("nombre", "")).strip().lower() == contratista_nombre.strip().lower():
+                                    rut_contratista_real = d_cont.get("rut", "0-0")
+                                    codigo_contratista_real = d_cont.get("codigo", "n/a")
+                                    break
+                        except Exception:
+                            pass
+
+                        # C.1. Buscamos el CÓDIGO real del Origen de Huerto seleccionado en Firestore
+                        codigo_huerto_real = "n/a"
+                        try:
+                            huerto_docs = db.collection("config_origen_huerto").stream()
+                            for doc in huerto_docs:
+                                d_huerto = doc.to_dict()
+                                if str(d_huerto.get("nombre", "")).strip().lower() == huerto_seleccionado_meson.strip().lower():
+                                    codigo_huerto_real = d_huerto.get("codigo", "n/a")
+                                    break
+                        except Exception:
+                            pass
+
+                        # D. Verificamos si es merma o flor normal
+                        item_seleccionado = st.session_state.flor_seleccionada_meson
+                        es_merma_actual = item_seleccionado.get("es_merma", False)
+
+                        if es_merma_actual:
+                            familia_final = "Merma"
+                            variedad_final = item_seleccionado["nombre"].replace("Merma: ", "")
+                            codigo_articulo = str(item_seleccionado["codigo"])
+                        else:
+                            familia_final = st.session_state.get("familia_activa_meson", "Delphinium Guardian")
+                            variedad_final = item_seleccionado["nombre"]
+                            codigo_articulo = str(item_seleccionado["codigo"])
+                                    
+                        # E. Envío estructurado a Firestore con hora exacta de Chile forzada (incluyendo origen de huerto y su código)
+                        ahora_envio = datetime.datetime.now(tz_cl)
+                        
+                        db.collection("cosecha_diaria").add({
+                            "fecha_registro": ahora_envio,
+                            "FechaFiltro": ahora_envio.strftime("%Y-%m-%d"),
+                            "rut_cosechador": st.session_state.rut_cosechador.upper(),
+                            "nombre_cosechador": nombre_cosechador_encontrado,
+                            "origen_huerto": huerto_seleccionado_meson,
+                            "codigo_origen_huerto": codigo_huerto_real,
+
+                            "contratista_nombre": contratista_nombre,
+                            "rut_contratista": rut_contratista_real,
+                            "codigo_contratista": codigo_contratista_real,
+                                    
+                            "centro_costo": cc_nombre,
+                            "codigo_centro_costo": codigo_cc_real,
+                                    
+                            "familia_flor": familia_final,
+                            "variedad_flor": variedad_final,
+                            "codigo_flor": codigo_articulo,
+                                    
+                            "cantidad_varas": int(st.session_state.cantidad_varas_meson),
+                            "es_merma": bool(es_merma_actual)
+                        })
+                                    
+                        st.success("✅ ¡Inyectado con éxito con formato estandarizado!")
+                                    
+                        # Reseteo de mesón para el siguiente flujo
+                        st.session_state.flor_seleccionada_meson = None
+                        st.session_state.cantidad_varas_meson = 30
+                        st.session_state.rut_cosechador = ""
+                        st.session_state.id_express_cosecha = ""
+                        st.session_state.cc_activo_meson = ""
+                        st.session_state.contratista_activo_meson = ""
+                        st.session_state.rut_bloqueado_operacion = True
+                        
+                        # Limpiamos caché del historial para forzar actualización automática instantánea
+                        if "lista_datos_dia_cache" in st.session_state:
+                            del st.session_state["lista_datos_dia_cache"]
+
+                        st.rerun()
+                    except Exception as e: 
+                        st.error(f"Error al inyectar datos: {e}")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+# Historial Diario de Terreno
+            st.write("")
+            st.markdown(
+                "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>",
+                unsafe_allow_html=True,
             )
-            if varas_puente != st.session_state.get("cantidad_varas_meson", 30):
-                st.session_state.cantidad_varas_meson = int(varas_puente)
-                st.fragment(lambda: None)
-                st.rerun()
-                        
-        with col_m3:
-            if st.button("+5", key="btn_m_mas_5_final_fijo", use_container_width=True):
-                st.session_state.cantidad_varas_meson = min(1500, st.session_state.get("cantidad_varas_meson", 30) + 5)
-                st.rerun()
 
-        st.write("")
-                
-        tiene_rut = st.session_state.get("rut_cosechador", "") != ""
-        tiene_flor = st.session_state.flor_seleccionada_meson is not None
-        bloq_f = not (tiene_rut and tiene_flor)
-
-        # 🎯 VALIDACIÓN DE SEGURIDAD OPERATIVA
-        st.markdown('<div class="btn-verde">', unsafe_allow_html=True)
-        if st.button("✅ Confirmar e Inyectar", key="btn_inj", use_container_width=True, disabled=bloq_f):
-            try:
+            @st.fragment
+            def fragmento_historial_dia_terreno():
                 import datetime
                 import zoneinfo
-                
-                # A. Recuperamos datos del estado de la tablet
-                cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
-                contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
-                        
-                # 🔍 Buscamos de forma automática el nombre del cosechador registrado previamente en el día
-                rut_limpio_busqueda = st.session_state.get("rut_cosechador", "").strip().lower()
-                nombre_cosechador_encontrado = "Sin Nombre"
-                
-                tz_cl = zoneinfo.ZoneInfo("America/Santiago")
 
-                try:
-                    fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
-                    
-                    credenciales_query = db.collection("credenciales_activas_dia")\
-                        .where("FechaFiltro", "==", fecha_hoy_busqueda_str)\
-                        .where("RutCosechador", "==", rut_limpio_busqueda)\
-                        .limit(1).get()
-                            
-                    if credenciales_query:
-                        nombre_cosechador_encontrado = credenciales_query[0].to_dict().get("NombreCosechador", "Sin Nombre")
-                except Exception:
-                    pass
+                tz_local = zoneinfo.ZoneInfo("America/Santiago")
+                fecha_hoy_chile = datetime.datetime.now(tz_local).date()
 
-                # B. Buscamos el CÓDIGO real del Centro de Costo en Firestore
-                codigo_cc_real = "n/a"
-                try:
-                    cc_docs = db.collection("config_centros_costo").stream()
-                    for doc in cc_docs:
-                        d_cc = doc.to_dict()
-                        if str(d_cc.get("nombre", "")).strip().lower() == cc_nombre.strip().lower():
-                            codigo_cc_real = d_cc.get("codigo", "n/a")
-                            break
-                except Exception:
-                    pass
-                        
-                # C. Buscamos el RUT y CÓDIGO real del Contratista en Firestore
-                rut_contratista_real = "0-0"
-                codigo_contratista_real = "n/a"
-                try:
-                    contra_docs = db.collection("config_contratistas").stream()
-                    for doc in contra_docs:
-                        d_cont = doc.to_dict()
-                        if str(d_cont.get("nombre", "")).strip().lower() == contratista_nombre.strip().lower():
-                            rut_contratista_real = d_cont.get("rut", "0-0")
-                            codigo_contratista_real = d_cont.get("codigo", "n/a")
-                            break
-                except Exception:
-                    pass
+                # 1. Selector de fecha en Streamlit para el usuario
+                filtro_fecha = st.date_input(
+                    "Selecciona la fecha para el historial:", 
+                    value=fecha_hoy_chile, 
+                    key="filtro_fecha_historial_meson"
+                )
 
-                # D. Verificamos si es merma o flor normal
-                item_seleccionado = st.session_state.flor_seleccionada_meson
-                es_merma_actual = item_seleccionado.get("es_merma", False)
+                # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD'
+                filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
 
-                if es_merma_actual:
-                    familia_final = "Merma"
-                    variedad_final = item_seleccionado["nombre"].replace("Merma: ", "")
-                    codigo_articulo = str(item_seleccionado["codigo"])
-                else:
-                    familia_final = st.session_state.get("familia_activa_meson", "Delphinium Guardian")
-                    variedad_final = item_seleccionado["nombre"]
-                    codigo_articulo = str(item_seleccionado["codigo"])
-                        
-                # E. Envío estructurado a Firestore con hora exacta de Chile forzada
-                ahora_envio = datetime.datetime.now(tz_cl)
-                
-                db.collection("cosecha_diaria").add({
-                    "fecha_registro": ahora_envio,
-                    "FechaFiltro": ahora_envio.strftime("%Y-%m-%d"),
-                    "rut_cosechador": st.session_state.rut_cosechador.upper(),
-                    "nombre_cosechador": nombre_cosechador_encontrado,
-                    "nave": nave_seleccionada_meson,
+                # Clave de caché única basada en la fecha seleccionada para recargar al cambiar el selector
+                cache_key = f"lista_datos_dia_cache_{filtro_fecha_str}"
 
-                    "contratista_nombre": contratista_nombre,
-                    "rut_contratista": rut_contratista_real,
-                    "codigo_contratista": codigo_contratista_real,
-                            
-                    "centro_costo": cc_nombre,
-                    "codigo_centro_costo": codigo_cc_real,
-                            
-                    "familia_flor": familia_final,
-                    "variedad_flor": variedad_final,
-                    "codigo_flor": codigo_articulo,
-                            
-                    "cantidad_varas": int(st.session_state.cantidad_varas_meson),
-                    "es_merma": bool(es_merma_actual)
-                })
-                        
-                st.success("✅ ¡Inyectado con éxito con formato estandarizado!")
-                        
-                # Reseteo de mesón para el siguiente flujo
-                st.session_state.flor_seleccionada_meson = None
-                st.session_state.cantidad_varas_meson = 30
-                st.session_state.rut_cosechador = ""
-                st.session_state.id_express_cosecha = ""
-                st.session_state.cc_activo_meson = ""
-                st.session_state.contratista_activo_meson = ""
-                st.session_state.rut_bloqueado_operacion = True
-                
-                # Limpiamos caché del historial para forzar actualización automática instantánea
-                if "lista_datos_dia_cache" in st.session_state:
-                    del st.session_state["lista_datos_dia_cache"]
-
-                st.rerun()
-            except Exception as e: 
-                st.error(f"Error al inyectar datos: {e}")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-        # Historial Diario de Terreno
-        st.write("")
-        st.markdown(
-            "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>",
-            unsafe_allow_html=True,
-        )
-
-
-        @st.fragment
-        def fragmento_historial_dia_terreno():
-            if (
-                "lista_datos_dia_cache" not in st.session_state
-                or not st.session_state["lista_datos_dia_cache"]
-            ):
-                try:
-                    import datetime
-                    import zoneinfo
-
-                    tz_local = zoneinfo.ZoneInfo("America/Santiago")
-                    fecha_hoy_chile = datetime.datetime.now(tz_local).date()
-
-                    # 1. Selector de fecha en Streamlit para el usuario
-                    filtro_fecha = st.date_input(
-                        "Selecciona la fecha para el historial:", value=fecha_hoy_chile, key="filtro_fecha_historial_meson"
-                    )
-
-                    # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD'
-                    filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
-
-                    # 3. Consulta a Firestore usando FechaFiltro
-                    docs_hoy = (
-                        db.collection("cosecha_diaria")
-                        .where("FechaFiltro", "==", filtro_fecha_str)
-                        .stream()
-                    )
-
-                    st.session_state["lista_datos_dia_cache"] = [
-                        doc.to_dict() for doc in docs_hoy
-                    ]
-                except Exception as e_carga:
-                    st.session_state["lista_datos_dia_cache"] = []
-
-            lista_operario_real = st.session_state.get("lista_datos_dia_cache", [])
-
-            if lista_operario_real:
-                try:
-                    df_op = pd.DataFrame(lista_operario_real)
-
-                    col_rut = (
-                        "rut_cosechador"
-                        if "rut_cosechador" in df_op.columns
-                        else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
-                    )
-                    col_nombre = (
-                        "nombre_cosechador"
-                        if "nombre_cosechador" in df_op.columns
-                        else ("NombreCosechador" if "NombreCosechador" in df_op.columns else None)
-                    )
-                    col_nave = "nave" if "nave" in df_op.columns else None
-                    col_familia = (
-                        "familia_flor" if "familia_flor" in df_op.columns else None
-                    )
-                    col_variedad = (
-                        "variedad_flor"
-                        if "variedad_flor" in df_op.columns
-                        else (
-                            "DescripcionArticulo"
-                            if "DescripcionArticulo" in df_op.columns
-                            else None
+                if cache_key not in st.session_state or not st.session_state[cache_key]:
+                    try:
+                        # 3. Consulta a Firestore usando FechaFiltro para la fecha seleccionada
+                        docs_hoy = (
+                            db.collection("cosecha_diaria")
+                            .where("FechaFiltro", "==", filtro_fecha_str)
+                            .stream()
                         )
-                    )
-                    col_varas = (
-                        "cantidad_varas"
-                        if "cantidad_varas" in df_op.columns
-                        else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
-                    )
-                    col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
-                    col_fecha_reg = "fecha_registro" if "fecha_registro" in df_op.columns else None
 
-                    if col_rut and col_variedad and col_varas:
-                        import __main__ as main
+                        st.session_state[cache_key] = [
+                            doc.to_dict() for doc in docs_hoy
+                        ]
+                    except Exception as e_carga:
+                        st.session_state[cache_key] = []
 
-                        if hasattr(main, "formatear_rut_chileno_completo"):
-                            df_op[col_rut] = df_op[col_rut].apply(
-                                lambda x: main.formatear_rut_chileno_completo(x)
-                                if pd.notnull(x)
-                                else x
+                lista_operario_real = st.session_state.get(cache_key, [])
+
+                if lista_operario_real:
+                    try:
+                        df_op = pd.DataFrame(lista_operario_real)
+
+                        col_rut = (
+                            "rut_cosechador"
+                            if "rut_cosechador" in df_op.columns
+                            else ("RutCosechador" if "RutCosechador" in df_op.columns else None)
+                        )
+                        col_nombre = (
+                            "nombre_cosechador"
+                            if "nombre_cosechador" in df_op.columns
+                            else ("NombreCosechador" if "NombreCosechador" in df_op.columns else None)
+                        )
+                        col_huerto = "origen_huerto" if "origen_huerto" in df_op.columns else ("nave" if "nave" in df_op.columns else None)
+                        col_familia = (
+                            "familia_flor" if "familia_flor" in df_op.columns else None
+                        )
+                        col_variedad = (
+                            "variedad_flor"
+                            if "variedad_flor" in df_op.columns
+                            else (
+                                "DescripcionArticulo"
+                                if "DescripcionArticulo" in df_op.columns
+                                else None
+                            )
+                        )
+                        col_varas = (
+                            "cantidad_varas"
+                            if "cantidad_varas" in df_op.columns
+                            else ("CantidadVaras" if "CantidadVaras" in df_op.columns else None)
+                        )
+                        col_es_merma = "es_merma" if "es_merma" in df_op.columns else None
+                        col_fecha_reg = "fecha_registro" if "fecha_registro" in df_op.columns else None
+
+                        if col_rut and col_variedad and col_varas:
+                            import __main__ as main
+
+                            if hasattr(main, "formatear_rut_chileno_completo"):
+                                df_op[col_rut] = df_op[col_rut].apply(
+                                    lambda x: main.formatear_rut_chileno_completo(x)
+                                    if pd.notnull(x)
+                                    else x
+                                )
+
+                            df_op_render = df_op.copy()
+
+                            columnas_a_mostrar = []
+                            renombre_columnas = {}
+
+                            if col_rut:
+                                columnas_a_mostrar.append(col_rut)
+                                renombre_columnas[col_rut] = "RUT Cosechador"
+                            if col_nombre and col_nombre in df_op_render.columns:
+                                columnas_a_mostrar.append(col_nombre)
+                                renombre_columnas[col_nombre] = "Nombre Cosechador"
+                            if col_huerto and col_huerto in df_op_render.columns:
+                                columnas_a_mostrar.append(col_huerto)
+                                renombre_columnas[col_huerto] = "Origen de Huerto"
+                            if col_familia and col_familia in df_op_render.columns:
+                                columnas_a_mostrar.append(col_familia)
+                                renombre_columnas[col_familia] = "Familia"
+                            if col_variedad:
+                                columnas_a_mostrar.append(col_variedad)
+                                renombre_columnas[col_variedad] = "Variedad / Detalle"
+                            if col_varas:
+                                columnas_a_mostrar.append(col_varas)
+                                renombre_columnas[col_varas] = "Cantidad Varas"
+                            if col_es_merma and col_es_merma in df_op_render.columns:
+                                columnas_a_mostrar.append(col_es_merma)
+                                renombre_columnas[col_es_merma] = "¿Es Merma?"
+
+                            df_op_render = df_op_render[columnas_a_mostrar].rename(columns=renombre_columnas)
+
+                            if col_fecha_reg in df_op.columns:
+                                df_op_render = df_op_render.iloc[df_op[col_fecha_reg].argsort()[::-1]]
+
+                            st.dataframe(df_op_render, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning(
+                                "⚠️ No se encontraron las columnas esperadas en los datos del servidor."
                             )
 
-                        # Omitimos completamente la creación de la columna "Hora" para la vista de la tabla.
-                        df_op_render = df_op.copy()
+                    except Exception as e_tabla:
+                        st.caption(f"⚠️ Nota de visualización: {e_tabla}")
+                else:
+                    st.info(f"📝 No hay registros cargados para la fecha {filtro_fecha_str} en este mesón.")
 
-                        # 🚫 SE ELIMINÓ LA HORA DE LA TABLA (Ya no se incluye "Hora" en columnas_a_mostrar)
-                        columnas_a_mostrar = []
-                        renombre_columnas = {}
-
-                        if col_rut:
-                            columnas_a_mostrar.append(col_rut)
-                            renombre_columnas[col_rut] = "RUT Cosechador"
-                        if col_nombre and col_nombre in df_op_render.columns:
-                            columnas_a_mostrar.append(col_nombre)
-                            renombre_columnas[col_nombre] = "Nombre Cosechador"
-                        if col_nave and col_nave in df_op_render.columns:
-                            columnas_a_mostrar.append(col_nave)
-                            renombre_columnas[col_nave] = "Nave"
-                        if col_familia and col_familia in df_op_render.columns:
-                            columnas_a_mostrar.append(col_familia)
-                            renombre_columnas[col_familia] = "Familia"
-                        if col_variedad:
-                            columnas_a_mostrar.append(col_variedad)
-                            renombre_columnas[col_variedad] = "Variedad / Detalle"
-                        if col_varas:
-                            columnas_a_mostrar.append(col_varas)
-                            renombre_columnas[col_varas] = "Cantidad Varas"
-                        if col_es_merma and col_es_merma in df_op_render.columns:
-                            columnas_a_mostrar.append(col_es_merma)
-                            renombre_columnas[col_es_merma] = "¿Es Merma?"
-
-                        df_op_render = df_op_render[columnas_a_mostrar].rename(columns=renombre_columnas)
-
-                        # Ordenar por fecha_registro descendente si la columna existe para mantener lo más nuevo arriba
-                        if col_fecha_reg in df_op.columns:
-                            df_op_render = df_op_render.iloc[df_op[col_fecha_reg].argsort()[::-1]]
-
-                        st.dataframe(df_op_render, use_container_width=True, hide_index=True)
-                    else:
-                        st.warning(
-                            "⚠️ No se encontraron las columnas esperadas en los datos del servidor."
-                        )
-
-                except Exception as e_tabla:
-                    st.caption(f"⚠️ Nota de visualización: {e_tabla}")
-            else:
-                st.info("📝 No hay registros cargados hoy en este mesón.")
-
-
-        fragmento_historial_dia_terreno()
+            fragmento_historial_dia_terreno()
 
 # Pestaña C: Panel de Control y Auditoría (Actualizado)
 
@@ -1663,8 +1686,8 @@ with tab_auditoria:
     st.markdown("<h3 style='color:#38bdf8;'>🔍 Panel de Auditoría y Control de Registros</h3>", unsafe_allow_html=True)
     st.caption("Espacio exclusivo para administradores. Filtre, edite directamente en la tabla y guarde las correcciones en Google Firebase.")
 
-    # 1. Recuperamos tus filtros visuales en columnas
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    # 1. Recuperamos tus filtros visuales en columnas (Añadido selector para Origen de Huerto)
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     
     with col_f1:
         filtro_fecha = st.date_input("📅 FILTRAR POR DÍA:", value=datetime.date.today(), key="filtro_fecha_auditoria")
@@ -1684,6 +1707,19 @@ with tab_auditoria:
         ignorar_cc = st.checkbox("Ignorar Centro Costo", value=True, key="chk_ignorar_cc")
         
     with col_f3:
+        lista_huerto_selector = ["Todos"]
+        try:
+            huerto_docs = db.collection("config_origen_huerto").stream()
+            for doc in huerto_docs:
+                d = doc.to_dict()
+                lista_huerto_selector.append(f"{d.get('nombre', '')} ({d.get('codigo', '')})")
+        except:
+            pass
+            
+        huerto_seleccionado_filtro = st.selectbox("📍 ORIGEN HUERTO:", options=lista_huerto_selector, key="select_huerto_auditoria")
+        ignorar_huerto = st.checkbox("Ignorar Huerto", value=True, key="chk_ignorar_huerto")
+
+    with col_f4:
         lista_cont_selector = ["Todos"]
         try:
             cont_docs = db.collection("config_contratistas").stream()
@@ -1696,7 +1732,7 @@ with tab_auditoria:
         contratista_seleccionado_filtro = st.selectbox("🤝 CONTRATISTA B2B:", options=lista_cont_selector, key="select_cont_auditoria")
         ignorar_contratista = st.checkbox("Ignorar Contratista SpA", value=True, key="chk_ignorar_cont")
         
-    with col_f4:
+    with col_f5:
         filtro_rut_cosechador = st.text_input("🔍 RUT COSECHADOR:", placeholder="Ej: 123456789", key="input_rut_audit")
         filtro_rut = filtro_rut_cosechador
         
@@ -1735,6 +1771,11 @@ with tab_auditoria:
                     if "centro_costo" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["centro_costo"].str.lower() == nombre_cc_buscado]
                 
+                if not ignorar_huerto and huerto_seleccionado_filtro != "Todos":
+                    nombre_huerto_buscado = huerto_seleccionado_filtro.split("(")[0].strip().lower()
+                    if "origen_huerto" in df_auditoria.columns:
+                        df_auditoria = df_auditoria[df_auditoria["origen_huerto"].str.lower() == nombre_huerto_buscado]
+
                 if not ignorar_contratista and contratista_seleccionado_filtro != "Todos":
                     rut_cont_buscado = contratista_seleccionado_filtro.split("|")[0].strip().lower()
                     if "rut_contratista" in df_auditoria.columns:
@@ -1763,9 +1804,11 @@ with tab_auditoria:
                     else:
                         df_auditoria["fecha"] = ""
 
-                    # Formateo visual con nombres compactos
+                    # Formateo visual con nombres compactos (Incluyendo el Origen de Huerto y su código)
                     df_auditoria["rut op."] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
                     df_auditoria["nombre op."] = df_auditoria.get("nombre_cosechador", "n/a")
+                    df_auditoria["huerto"] = df_auditoria.get("origen_huerto", "n/a")
+                    df_auditoria["sku huerto"] = df_auditoria.get("codigo_origen_huerto", "n/a")
                     df_auditoria["cont."] = df_auditoria.get("contratista_nombre", "n/a")
                     df_auditoria["rut cont."] = df_auditoria.get("rut_contratista", "0-0")
                     df_auditoria["sku c."] = df_auditoria.get("codigo_contratista", "n/a")
@@ -1774,7 +1817,7 @@ with tab_auditoria:
                     df_auditoria["familia flor"] = df_auditoria.get("familia_flor", "n/a")
                     df_auditoria["variedad"] = df_auditoria.get("variedad_flor", "n/a")
                     df_auditoria["sku flor"] = df_auditoria.get("codigo_flor", "n/a")
-                    df_auditoria["v."] = df_auditoria.get("cantidad_varas", 0).astype(int)  # <-- Cambiado a "v." para ahorrar espacio
+                    df_auditoria["v."] = df_auditoria.get("cantidad_varas", 0).astype(int)
                     df_auditoria["es_merma_bool"] = df_auditoria.get("es_merma", False)
 
                     # 💾 GUARDAMOS EL RESULTADO EN MEMORIA DE SESIÓN
@@ -1793,15 +1836,19 @@ with tab_auditoria:
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
         
-        # ⚠️ Verificamos que 'v.' esté presente en el DataFrame de sesión
+        # ⚠️ Verificamos que 'v.' y campos de huerto estén presentes en el DataFrame de sesión
         if "v." not in df_ver.columns and "cantidad_varas" in df_ver.columns:
             df_ver["v."] = df_ver["cantidad_varas"].astype(int)
-            st.session_state["df_auditoria_activo"] = df_ver
+        if "huerto" not in df_ver.columns and "origen_huerto" in df_ver.columns:
+            df_ver["huerto"] = df_ver["origen_huerto"]
+        if "sku huerto" not in df_ver.columns and "codigo_origen_huerto" in df_ver.columns:
+            df_ver["sku huerto"] = df_ver["codigo_origen_huerto"]
+        st.session_state["df_auditoria_activo"] = df_ver
 
-        # ⚠️ Nombres exactos de las columnas (Incluyendo explícitamente "v.")
+        # ⚠️ Nombres exactos de las columnas en la vista (Incluyendo explícitamente "huerto" y "sku huerto")
         columnas_vista = [
-            "fecha", "rut op.", "nombre op.", "cont.", "rut cont.", 
-            "sku c.", "c.c.", "sku c.c.", 
+            "fecha", "rut op.", "nombre op.", "huerto", "sku huerto", 
+            "cont.", "rut cont.", "sku c.", "c.c.", "sku c.c.", 
             "familia flor", "variedad", "sku flor", "v."
         ]
         
@@ -1826,7 +1873,6 @@ with tab_auditoria:
         
         col_metrica, col_guardar_cambios = st.columns([2, 1])
         with col_metrica:
-            # Validación segura por si la columna viene renombrada o alterada por el editor
             col_vara_key = "v." if "v." in df_editado_vista.columns else df_editado_vista.columns[-1]
             total_v = df_editado_vista[col_vara_key].sum()
             st.metric(label="Suma Total de Varas (Editadas)", value=f"{total_v} varas")
@@ -1838,16 +1884,34 @@ with tab_auditoria:
                     barra_progreso = st.progress(0, text="Sincronizando cambios con la nube...")
                     total_filas = len(df_editado_vista)
                     
+                    # Cargar un diccionario auxiliar de códigos de huerto por nombre desde Firestore para asegurar consistencia
+                    mapa_codigos_huerto = {}
+                    try:
+                        for doc in db.collection("config_origen_huerto").stream():
+                            d_h = doc.to_dict()
+                            if "nombre" in d_h and "codigo" in d_h:
+                                mapa_codigos_huerto[str(d_h["nombre"]).strip().lower()] = str(d_h["codigo"]).strip()
+                    except:
+                        pass
+
                     for idx, row in df_editado_vista.iterrows():
                         doc_id = df_ver.iloc[idx].get("id_documento_firebase")
                         
                         familia_actualizada = str(row.get("familia flor", "")).strip()
                         es_merma_calculada = familia_actualizada.lower() == "merma"
                         
+                        huerto_actualizado = str(row.get("huerto", "")).strip()
+                        # Buscar si el usuario editó el nombre del huerto para autocompletar su código correspondiente, o mantener el valor de la celda
+                        sku_huerto_actualizado = str(row.get("sku huerto", "")).strip()
+                        if huerto_actualizado.lower() in mapa_codigos_huerto:
+                            sku_huerto_actualizado = mapa_codigos_huerto[huerto_actualizado.lower()]
+                        
                         if doc_id:
                             datos_actualizados = {
                                 "rut_cosechador": str(row.get("rut op.", "")).strip().upper(),
                                 "nombre_cosechador": str(row.get("nombre op.", "")).strip().upper(),
+                                "origen_huerto": huerto_actualizado,
+                                "codigo_origen_huerto": sku_huerto_actualizado,
                                 "contratista_nombre": str(row.get("cont.", "")).strip(),
                                 "rut_contratista": str(row.get("rut cont.", "")).strip(),
                                 "codigo_contratista": str(row.get("sku c.", "")).strip(),
@@ -1894,6 +1958,9 @@ with tab_auditoria:
                         df_kame_source = st.session_state["df_auditoria_activo"].copy()
                     
                         df_kame_source["CentroCosto"] = df_kame_source.get("centro_de_costo", df_kame_source.get("c.c.", ""))
+                        df_kame_source["CodigoCentroCosto"] = df_kame_source.get("codigo_centro_costo", df_kame_source.get("sku c.c.", ""))
+                        df_kame_source["OrigenHuerto"] = df_kame_source.get("origen_huerto", df_kame_source.get("huerto", ""))
+                        df_kame_source["CodigoOrigenHuerto"] = df_kame_source.get("codigo_origen_huerto", df_kame_source.get("sku huerto", ""))
                         df_kame_source["RutContratista"] = df_kame_source.get("rut_contratista", df_kame_source.get("rut cont.", ""))
                         df_kame_source["ContratistaNombre"] = df_kame_source.get("contratista_nombre", df_kame_source.get("cont.", ""))
                         df_kame_source["RutCosechador"] = df_kame_source.get("rut_cosechador", df_kame_source.get("rut op.", ""))
@@ -1902,12 +1969,20 @@ with tab_auditoria:
                         df_kame_source["DescripcionArticulo"] = df_kame_source.get("variedad_flor", df_kame_source.get("variedad", ""))
                         df_kame_source["CantidadVaras"] = df_kame_source.get("cantidad_varas", df_kame_source.get("v.", 0)).astype(int)
 
-                        columnas_kame = ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"]
+                        columnas_kame = [
+                            "CentroCosto", "CodigoCentroCosto", "OrigenHuerto", "CodigoOrigenHuerto", 
+                            "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", 
+                            "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"
+                        ]
                     
                         cols_presentes_kame = [c for c in columnas_kame if c in df_kame_source.columns]
                     
                         df_agrupado_kame = df_kame_source[cols_presentes_kame].groupby(
-                            ["CentroCosto", "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", "CodigoArticulo", "DescripcionArticulo"], 
+                            [
+                                "CentroCosto", "CodigoCentroCosto", "OrigenHuerto", "CodigoOrigenHuerto", 
+                                "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", 
+                                "CodigoArticulo", "DescripcionArticulo"
+                            ], 
                             as_index=False
                         )["CantidadVaras"].sum()
 
@@ -1942,14 +2017,18 @@ with tab_auditoria:
                     df_flores_prod = df_fuente[df_fuente["es_merma_eval"] == False]
                     df_flores_mermas = df_fuente[df_fuente["es_merma_eval"] == True]
 
-                    df_vale_prod = df_flores_prod.groupby(["rut op.", "nombre op.","familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "familia flor", "variedad", "v."])
-                    df_vale_merma = df_flores_mermas.groupby(["rut op.", "nombre op.","familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "familia flor", "variedad", "v."])
+                    df_vale_prod = df_flores_prod.groupby(["rut op.", "nombre op.", "huerto", "sku huerto", "familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_prod.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "huerto", "sku huerto", "familia flor", "variedad", "v."])
+                    df_vale_merma = df_flores_mermas.groupby(["rut op.", "nombre op.", "huerto", "sku huerto", "familia flor", "variedad"], as_index=False)["v."].sum() if not df_flores_mermas.empty else pd.DataFrame(columns=["rut op.", "nombre op.", "huerto", "sku huerto", "familia flor", "variedad", "v."])
                 
                     fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
                     str_fecha = str(fechas_unicas[0]) if len(fechas_unicas) == 1 else "Todas las fechas"
                     
                     ccs_unicos = df_fuente["c.c."].unique() if "c.c." in df_fuente.columns else []
                     str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
+
+                    # Recuperar el Origen del Huerto para mostrarlo claramente en el voucher impreso
+                    huertos_unicos = df_fuente["huerto"].unique() if "huerto" in df_fuente.columns else []
+                    str_huerto = huertos_unicos[0] if len(huertos_unicos) == 1 else "Varios huertos"
 
                     b2b_unicos = df_fuente["cont."].unique() if "cont." in df_fuente.columns else []
                     str_empresa = b2b_unicos[0] if len(b2b_unicos) == 1 else "Todas las empresas"
@@ -2025,7 +2104,8 @@ with tab_auditoria:
                             <p style='text-align:center; margin:5px 0; font-size:12px; color:black;'>COMPROBANTE DE COSECHA Y AUDITORÍA</p>
                             <hr style='border-top:1px dashed black;'>
                             <p style='margin:3px 0; color:black;'><b>Fecha:</b> {str_fecha}</p>
-                            <p style='margin:3px 0; color:black;'><b>Origen:</b> {str_origen}</p>
+                            <p style='margin:3px 0; color:black;'><b>Centro Costo:</b> {str_origen}</p>
+                            <p style='margin:3px 0; color:black;'><b>Origen Huerto:</b> {str_huerto}</p>
                             <p style='margin:3px 0; color:black;'><b>Empresa:</b> {str_empresa}</p>
                             <p style='margin:3px 0; color:black;'><b>Cosechador:</b> {str_cosechador}</p>
                             <p style='margin:3px 0; color:black;'><b>Nombre Cosechador:</b> {str_cosecheros}</p>
@@ -2089,7 +2169,15 @@ with tab_auditoria:
     # ==================================================================
     st.write("---")
     st.markdown("<h2 style='color:#38bdf8;'>⚙️ Panel de Configuración del Catálogo</h2>", unsafe_allow_html=True)
-    s_cc, s_b2b, s_flores, s_mermas = st.tabs(["🏬 Centros de Costo", "🤝 Contratistas B2B", "💐 Flores y Variedades", "🗑️ Mermas"])
+    
+    # Se añade la pestaña "📍 Origen de Huerto" a la lista de solapas
+    s_cc, s_b2b, s_flores, s_mermas, s_huerto = st.tabs([
+        "🏬 Centros de Costo", 
+        "🤝 Contratistas B2B", 
+        "💐 Flores y Variedades", 
+        "🗑️ Mermas",
+        "📍 Origen de Huerto"
+    ])
     
     with s_cc:
         with st.form("form_add_cc", clear_on_submit=True):
@@ -2193,3 +2281,24 @@ with tab_auditoria:
                         st.error(f"❌ Error al guardar la merma en Firebase: {e}")
                 else:
                     st.warning("⚠️ Todos los campos (Código y Merma) son obligatorios.")
+
+    with s_huerto:
+        with st.form("form_add_origen_huerto", clear_on_submit=True):
+            st.markdown("### ➕ Registrar Origen de Huerto")
+            nombre_huerto = st.text_input("Nombre del Huerto / Sector:", placeholder="Ej: Nave o Cuartel", key="in_huerto_nom").strip()
+            codigo_huerto = st.text_input("Código de Origen:", placeholder="Ej: N01", key="in_huerto_cod").strip()
+                
+            if st.form_submit_button("Registrar Origen de Huerto", use_container_width=True):
+                if nombre_huerto and codigo_huerto:
+                    try:
+                        db.collection("config_origen_huerto").add({
+                            "nombre": nombre_huerto,
+                            "codigo": codigo_huerto.upper(),
+                            "fecha_creacion": datetime.datetime.now()
+                        })
+                        st.success(f"✅ Origen de huerto '{nombre_huerto}' (Código: {codigo_huerto.upper()}) registrado correctamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al guardar el origen de huerto en Firebase: {e}")
+                else:
+                    st.warning("⚠️ Ambos campos (Nombre y Código) son obligatorios.")

@@ -1281,7 +1281,7 @@ with tab_terminal:
                         st.session_state.cantidad_varas_meson = 30
                         st.rerun()
         
-    with col_panel_central_derecho:
+with col_panel_central_derecho:
         if "flor_seleccionada_meson" not in st.session_state: 
             st.session_state.flor_seleccionada_meson = None
         if "cantidad_varas_meson" not in st.session_state: 
@@ -1312,9 +1312,12 @@ with tab_terminal:
             
             st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
             
-            # --- RENDERIZADO UNIFICADO DE VARIEDADES DE FLORES ---
+            # --- RENDERIZADO UNIFICADO DE VARIEDADES DE FLORES (Ordenadas Alfabéticamente) ---
             familia_actual = st.session_state.familia_activa_meson
-            lista_flores_render = diccionario_flores_dinamico.get(familia_actual, []) if diccionario_flores_dinamico else []
+            lista_flores_brutas = diccionario_flores_dinamico.get(familia_actual, []) if diccionario_flores_dinamico else []
+            
+            # 🔤 Ordenamos la lista de diccionarios alfabéticamente por su nombre
+            lista_flores_render = sorted(lista_flores_brutas, key=lambda x: str(x.get("nombre", "")).lower())
             
             if lista_flores_render:
                 st.markdown(f"<p style='color:#94a3b8; font-size:13px; margin-bottom:12px;'>Variedades activas en {familia_actual}:</p>", unsafe_allow_html=True)
@@ -1370,7 +1373,7 @@ with col_derecha_consolidacion:
                 else:
                     st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
                         
-                # 📍 Apartado para seleccionar el Origen de Huerto desde Firebase (config_origen_huerto)
+# 📍 Apartado para seleccionar el Origen de Huerto desde Firebase (config_origen_huerto)
                 huertos_disponibles = []
                 try:
                     docs_huertos = db.collection("config_origen_huerto").stream()
@@ -1379,6 +1382,10 @@ with col_derecha_consolidacion:
                         nombre_h = d_h.get("nombre")
                         if nombre_h:
                             huertos_disponibles.append(nombre_h)
+                    
+                    # 🔤 Ordenar alfabéticamente la lista obtenida de Firebase
+                    huertos_disponibles.sort()
+                    
                 except Exception:
                     pass
                 
@@ -1694,40 +1701,57 @@ with tab_auditoria:
         ignorar_fecha = st.checkbox("Ignorar fecha", value=False, key="chk_ignorar_fecha")
         
     with col_f2:
-        lista_cc_selector = ["Todos"]
+        lista_cc_cargada = []
         try:
             cc_docs = db.collection("config_centros_costo").stream()
             for doc in cc_docs:
                 d = doc.to_dict()
-                lista_cc_selector.append(f"{d.get('nombre', '')} ({d.get('codigo', '')})")
+                nombre_cc = d.get('nombre', '')
+                codigo_cc = d.get('codigo', '')
+                lista_cc_cargada.append(f"{nombre_cc} ({codigo_cc})")
         except:
+            pass
+        
+        # 🔤 Ordenamos alfabéticamente y ponemos "Todos" al principio
+        lista_cc_selector = ["Todos"] + sorted(lista_cc_cargada, key=lambda x: x.lower())
+        if len(lista_cc_selector) == 1:
             lista_cc_selector = ["Todos", "Chipana (CC 02)"]
             
         cc_seleccionado_filtro = st.selectbox("🏭 CENTRO DE COSTO:", options=lista_cc_selector, key="select_cc_auditoria")
         ignorar_cc = st.checkbox("Ignorar Centro Costo", value=True, key="chk_ignorar_cc")
         
     with col_f3:
-        lista_huerto_selector = ["Todos"]
+        lista_huerto_cargada = []
         try:
             huerto_docs = db.collection("config_origen_huerto").stream()
             for doc in huerto_docs:
                 d = doc.to_dict()
-                lista_huerto_selector.append(f"{d.get('nombre', '')} ({d.get('codigo', '')})")
+                nombre_h = d.get('nombre', '')
+                codigo_h = d.get('codigo', '')
+                lista_huerto_cargada.append(f"{nombre_h} ({codigo_h})")
         except:
             pass
             
+        # 🔤 Ordenamos alfabéticamente y ponemos "Todos" al principio
+        lista_huerto_selector = ["Todos"] + sorted(lista_huerto_cargada, key=lambda x: x.lower())
+        
         huerto_seleccionado_filtro = st.selectbox("📍 ORIGEN HUERTO:", options=lista_huerto_selector, key="select_huerto_auditoria")
         ignorar_huerto = st.checkbox("Ignorar Huerto", value=True, key="chk_ignorar_huerto")
 
     with col_f4:
-        lista_cont_selector = ["Todos"]
+        lista_cont_cargada = []
         try:
             cont_docs = db.collection("config_contratistas").stream()
             for doc in cont_docs:
                 d = doc.to_dict()
-                lista_cont_selector.append(f"{d.get('rut', '')} | {d.get('nombre', '')}")
+                rut_c = d.get('rut', '')
+                nombre_c = d.get('nombre', '')
+                lista_cont_cargada.append(f"{rut_c} | {nombre_c}")
         except:
-            lista_cont_selector = ["Todos"]
+            pass
+            
+        # 🔤 Ordenamos alfabéticamente y ponemos "Todos" al principio
+        lista_cont_selector = ["Todos"] + sorted(lista_cont_cargada, key=lambda x: x.lower())
             
         contratista_seleccionado_filtro = st.selectbox("🤝 CONTRATISTA B2B:", options=lista_cont_selector, key="select_cont_auditoria")
         ignorar_contratista = st.checkbox("Ignorar Contratista SpA", value=True, key="chk_ignorar_cont")

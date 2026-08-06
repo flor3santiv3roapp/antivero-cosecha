@@ -157,7 +157,6 @@ def dibujar_teclado_enrolamiento_antivero():
         placeholder="Ej: 12345678-9 o URL del carnet"
     )
 
-    # 🔍 Lógica para extraer RUT y Nombre si se escanea el QR del carnet de identidad chileno
     rut_procesar = rut_ingresado_fisico.strip()
     nombre_extraido_qr = ""
 
@@ -167,13 +166,11 @@ def dibujar_teclado_enrolamiento_antivero():
             parsed_url = urlparse(rut_procesar)
             query_params = parse_qs(parsed_url.query)
             
-            # Buscar RUT en parámetros comunes del QR del Registro Civil
             for param in ["run", "rut", "RUN", "RUT"]:
                 if param in query_params:
                     rut_procesar = query_params[param][0]
                     break
             
-            # Buscar Nombre si viene incluido en el QR
             for param_nom in ["nombre", "nombres", "name", "NOMBRE"]:
                 if param_nom in query_params:
                     nombre_extraido_qr = query_params[param_nom][0].replace("+", " ").title()
@@ -181,7 +178,6 @@ def dibujar_teclado_enrolamiento_antivero():
         except Exception:
             pass
 
-    # Si el nombre fue detectado por QR y hay un campo en session_state para guardarlo automáticamente, lo seteamos
     if nombre_extraido_qr and "input_nombre_operario" in st.session_state:
         st.session_state["input_nombre_operario"] = nombre_extraido_qr
 
@@ -212,7 +208,6 @@ def dibujar_teclado_enrolamiento_antivero():
         
     st.write("")
 
-    # Campo para el Nombre del Operario (manual o autocomllenado por QR)
     nombre_operario = st.text_input(
         "Nombre del Operario:",
         value="",
@@ -234,22 +229,20 @@ def dibujar_teclado_enrolamiento_antivero():
         try:
             tz_cl = zoneinfo.ZoneInfo("America/Santiago")
             ahora_cl = datetime.datetime.now(tz_cl)
-            fecha_hoy_str = ahora_cl.strftime("%Y-%m-%d")
+            fecha_hoy_str = ahora_cl.strftime("%d/%m/%Y")
             rut_limpio = rut_crudo.lower()
             nombre_limpio = nombre_operario.strip().title()
             
-            # 🛑 VALIDACIÓN ANTI-DUPLICADOS: Validar si este RUT ya sacó código hoy
             duplicados = db.collection("credenciales_activas_dia")\
-                .where("FechaFiltro", "==", fecha_hoy_str)\
                 .where("RutCosechador", "==", rut_limpio)\
                 .limit(1).get()
                 
             if duplicados:
                 datos_existentes = duplicados[0].to_dict()
                 id_existente = datos_existentes.get("id_express")
-                st.warning(f"⚠️ El operario {nombre_limpio} (RUT {rut_visible}) ya está registrado hoy con la Ficha #{id_existente}.")
+                nombre_registrado = datos_existentes.get("NombreCosechador", nombre_limpio)
+                st.warning(f"⚠️ El operario {nombre_registrado} (RUT {rut_visible}) ya cuenta con la Ficha #{id_existente} asignada previamente. Se recupera su credencial.")
                 
-                # Cargar el QR existente para permitir reimpresión sin generar duplicado
                 qr = qrcode.QRCode(version=1, box_size=8, border=1)
                 qr.add_data(str(id_existente))
                 qr.make(fit=True)
@@ -258,10 +251,10 @@ def dibujar_teclado_enrolamiento_antivero():
                 
                 st.session_state.qr_render_actual = buf.getvalue()
                 st.session_state.id_render_actual = id_existente
+                st.session_state.nombre_render_actual = nombre_registrado
                 st.rerun()
             
-            # Si no es duplicado, procedemos con normalidad
-            ya_enrolados = db.collection("credenciales_activas_dia").where("FechaFiltro", "==", fecha_hoy_str).stream()
+            ya_enrolados = db.collection("credenciales_activas_dia").stream()
             numeros_ocupados = [int(doc.to_dict().get("id_express")) for doc in ya_enrolados if doc.to_dict().get("id_express")]
             
             id_express = 100
@@ -270,7 +263,7 @@ def dibujar_teclado_enrolamiento_antivero():
                     id_express = num
                     break
                     
-            codigo_largo_auditoria = f"{ahora_cl.strftime('%Y%m%d')}-{rut_limpio}-{id_express}"
+            codigo_largo_auditoria = f"{ahora_cl.strftime('%d/%m/%Y')}-{rut_limpio}-{id_express}"
             
             cc_valor = cc_manana.get("nombre") if isinstance(cc_manana, dict) else cc_manana
             contratista_valor = contratista_manana.get("nombre") if isinstance(contratista_manana, dict) else contratista_manana
@@ -295,6 +288,7 @@ def dibujar_teclado_enrolamiento_antivero():
             
             st.session_state.qr_render_actual = buf.getvalue()
             st.session_state.id_render_actual = id_express
+            st.session_state.nombre_render_actual = nombre_limpio
             st.rerun()
         except Exception as ex:
             st.error(f"❌ Error en el enrolamiento: {ex}")
@@ -302,7 +296,6 @@ def dibujar_teclado_enrolamiento_antivero():
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Bloque de Impresión Multimodal con Aislamiento de Ticket (CSS @media print)
     qr_activo = st.session_state.get("qr_render_actual", None)
     if "imprimir_zebra_trigger" not in st.session_state:
         st.session_state.imprimir_zebra_trigger = False
@@ -311,106 +304,120 @@ def dibujar_teclado_enrolamiento_antivero():
         
     if qr_activo:
         st.write("")
-        
-        # Convertimos los bytes del QR a un string Base64 para poder inyectarlo de forma segura en el HTML aislado
         import base64
         qr_b64 = base64.b64encode(qr_activo).decode("utf-8")
-        id_actual_str = str(st.session_state.id_render_actual)
+        id_actual_str = str(st.session_state.get("id_render_actual", ""))
+        nombre_actual_str = str(st.session_state.get("nombre_render_actual", ""))
         
         with st.container(border=True):
             col_ticket_qr, col_ticket_btn = st.columns([1.3, 1.7])
             with col_ticket_qr:
-                st.image(qr_activo, caption=f"Ficha #{id_actual_str}", width=150)
+                st.image(qr_activo, caption=f"Ficha #{id_actual_str}\n{nombre_actual_str}", width=150)
             with col_ticket_btn:
                 st.write("### Opciones de Impresión")
                 
-                # Opción 1: Automatizada Directa a Zebra ZM400
                 if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_print_zebra", use_container_width=True, type="primary"):
                     st.session_state.imprimir_zebra_trigger = True
                     st.rerun()
                     
-                # Opción 2: Ventana Tradicional Windows
                 if st.button("🖨️ IMPRIMIR CON WINDOWS (Elegir...)", key="btn_print_windows", use_container_width=True):
                     st.session_state.imprimir_windows_trigger = True
                     st.rerun()
                     
                 if st.button("🗑️ Siguiente Operario", key="clear_qr_view", use_container_width=True):
                     st.session_state.qr_render_actual = None
+                    st.session_state.id_render_actual = None
+                    st.session_state.nombre_render_actual = None
                     st.session_state.imprimir_zebra_trigger = False
                     st.session_state.imprimir_windows_trigger = False
                     st.rerun()
                     
-# 🖨️ JavaScript e HTML para Ventana de Windows (Fondo Blanco Puro Forzado)
-            if st.session_state.imprimir_windows_trigger:
-                st.session_state.imprimir_windows_trigger = False
+        if st.session_state.imprimir_windows_trigger:
+            st.session_state.imprimir_windows_trigger = False
+            
+            st.components.v1.html(f"""
+                <div id="ticket-imprimible-exclusivo" style="text-align: center; font-family: sans-serif; background: #ffffff !important; color: #000000 !important; padding: 20px; position: fixed; left: -9999px;">
+                    <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
+                    <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
+                    <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
+                    <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
+                </div>
                 
-                st.components.v1.html(f"""
-                    <div id="ticket-imprimible-exclusivo" style="text-align: center; font-family: sans-serif; background: #ffffff !important; color: #000000 !important; padding: 20px;">
-                        <img src="data:image/png;base64,{qr_b64}" style="width: 200px; height: 200px;" />
-                        <h2 style="margin-top: 10px; font-size: 28px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
-                    </div>
+                <script>
+                    const parentDoc = window.parent.document;
                     
-                    <script>
-                        var estilo = window.parent.document.createElement('style');
-                        estilo.innerHTML = `
-                            @media print {{
-                                html, body, [data-testid="stAppViewContainer"] {{
-                                    background-color: #ffffff !important;
-                                    color: #000000 !important;
-                                    background: #ffffff !important;
-                                }}
-                                body * {{ 
-                                    visibility: hidden !important; 
-                                }}
-                                #ticket-imprimible-exclusivo, #ticket-imprimible-exclusivo * {{ 
-                                    visibility: visible !important; 
-                                }}
-                                #ticket-imprimible-exclusivo {{ 
-                                    position: absolute; 
-                                    left: 0; 
-                                    top: 0; 
-                                    width: 100%; 
-                                    text-align: center; 
-                                    background: #ffffff !important;
-                                }}
+                    const viejoEstilo = parentDoc.getElementById("estilo-impresion-dinamico");
+                    if (viejoEstilo) viejoEstilo.remove();
+                    
+                    const viejoContenedor = parentDoc.getElementById("ticket-imprimible-exclusivo");
+                    if (viejoContenedor) viejoContenedor.remove();
+                    
+                    var estilo = parentDoc.createElement('style');
+                    estilo.id = "estilo-impresion-dinamico";
+                    estilo.innerHTML = `
+                        @media print {{
+                            html, body, [data-testid="stAppViewContainer"] {{
+                                background-color: #ffffff !important;
+                                color: #000000 !important;
+                                background: #ffffff !important;
                             }}
-                        `;
-                        window.parent.document.head.appendChild(estilo);
-                        
-                        var divTemporal = window.parent.document.createElement('div');
-                        divTemporal.id = "ticket-imprimible-exclusivo";
-                        divTemporal.style.background = "#ffffff";
-                        divTemporal.innerHTML = document.getElementById("ticket-imprimible-exclusivo").innerHTML;
-                        window.parent.document.body.appendChild(divTemporal);
-                        
-                        setTimeout(function() {{
-                            window.parent.print();
-                            divTemporal.remove();
-                            estilo.remove();
-                        }}, 200);
-                    </script>
-                """, height=0, width=0)
-
-            # 🚀 JavaScript de ejecución nativa ZPL para la Zebra ZM400
-            if st.session_state.imprimir_zebra_trigger:
-                st.session_state.imprimir_zebra_trigger = False
-                zpl_code = f"^XA^FO100,50^BQN,2,6^FDQA,{id_actual_str}^FS^FO120,230^A0N,40,40^FDID: {id_actual_str}^FS^XZ"
-                
-                st.components.v1.html(f"""
-                    <script>
-                        if (typeof qz !== 'undefined' && qz.websocket.isActive()) {{
-                            var config = qz.configs.create("Zebra ZM400");
-                            var data = ['{zpl_code}'];
-                            qz.print(config, data).catch(function(e) {{ console.error(e); }});
-                        }} else {{
-                            var iframe = window.parent.parent.document.createElement('iframe');
-                            iframe.style.display = 'none';
-                            window.parent.parent.document.body.appendChild(iframe);
-                            iframe.contentWindow.document.write('{zpl_code}');
-                            iframe.contentWindow.print();
+                            body * {{ 
+                                visibility: hidden !important; 
+                            }}
+                            #ticket-imprimible-exclusivo, #ticket-imprimible-exclusivo * {{ 
+                                visibility: visible !important; 
+                            }}
+                            #ticket-imprimible-exclusivo {{ 
+                                position: absolute !important; 
+                                left: 0 !important; 
+                                top: 0 !important; 
+                                width: 100% !important; 
+                                text-align: center !important; 
+                                background: #ffffff !important;
+                                display: block !important;
+                            }}
                         }}
-                    </script>
-                """, height=0, width=0)
+                    `;
+                    parentDoc.head.appendChild(estilo);
+                    
+                    var divTemporal = parentDoc.createElement('div');
+                    divTemporal.id = "ticket-imprimible-exclusivo";
+                    divTemporal.style.cssText = "position:absolute; left:0; top:0; width:100%; text-align:center; background:#ffffff; z-index:999999; display:none;";
+                    divTemporal.innerHTML = `
+                        <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
+                        <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
+                        <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
+                        <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
+                    `;
+                    parentDoc.body.appendChild(divTemporal);
+                    
+                    setTimeout(function() {{
+                        window.parent.print();
+                    }}, 250);
+                </script>
+            """, height=0, width=0)
+
+        if st.session_state.imprimir_zebra_trigger:
+            st.session_state.imprimir_zebra_trigger = False
+            zpl_code = f"^XA^FO100,30^BQN,2,5^FDQA,{id_actual_str}^FS^FO100,180^A0N,30,30^FDID: {id_actual_str}^FS^FO100,220^A0N,25,25^FD{nombre_actual_str}^FS^XZ"
+            
+            st.components.v1.html(f"""
+                <script>
+                    if (typeof qz !== 'undefined' && qz.websocket.isActive()) {{
+                        var config = qz.configs.create("Zebra ZM400");
+                        var data = ['{zpl_code}'];
+                        qz.print(config, data).catch(function(e) {{ console.error(e); }});
+                    }} else {{
+                        var iframe = window.parent.parent.document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        window.parent.parent.document.body.appendChild(iframe);
+                        iframe.contentWindow.document.write('{zpl_code}');
+                        iframe.contentWindow.print();
+                    }}
+                </script>
+            """, height=0, width=0)
+
+
 # ==================================================================
 # LECTURA DINÁMICA AVANZADA PARA FILTROS DE AUDITORÍA
 # ==================================================================
@@ -1060,13 +1067,10 @@ with tab_credenciales:
         """)
 
 
-        # --- TABLA DE CONTROL EN VIVO DE CREDENCIALES DEL DÍA ---
+# --- TABLA DE CONTROL EN VIVO DE CREDENCIALE S---
         try:
-            tz_local = zoneinfo.ZoneInfo("America/Santiago")
-            fecha_filtro_hoy = datetime.datetime.now(tz_local).strftime("%Y-%m-%d")
-            
-            # Consultamos las fichas que corresponden a la fecha de hoy en Chile
-            docs_enrolados = db.collection("credenciales_activas_dia").where("FechaFiltro", "==", fecha_filtro_hoy).stream()
+            # Consultamos todos los documentos sin filtrar por fecha ni centro de costo
+            docs_enrolados = db.collection("credenciales_activas_dia").stream()
             lista_enrolados_dia = [doc.to_dict() for doc in docs_enrolados]
             
             if lista_enrolados_dia:
@@ -1081,10 +1085,10 @@ with tab_credenciales:
                 # 1. TABLA FLUIDA Y ESTABLE (CERO RECARGAS FANTASMAS)
                 st.dataframe(df_asistencia_render, use_container_width=True, hide_index=True)
                 
-                # 🚀 LA CORRECCIÓN: Declaramos la lista de IDs de hoy directo desde los datos de Firebase 🚀
+                # 🚀 Declaramos la lista de IDs disponibles directo desde los datos de Firebase 🚀
                 lista_ids_hoy = [str(x) for x in df_asistencia_render["id_express"].tolist()]
                 
-                # 🚀 REGENERADOR INDEPENDIENTE LIBRE DE ERRORES DE INSTANCIACIÓN
+                # 🚀 REGENERADOR INDEPENDIENTE LIBRE DE RESTRICCIONES DE FECHA
                 st.write("")
                 st.markdown("<h4 style='color:#38bdf8;'>🖨️ Módulo de Reimpresión de Fichas Extraviadas</h4>", unsafe_allow_html=True)
                 
@@ -1095,32 +1099,38 @@ with tab_credenciales:
                 ).strip()
                 
                 if st.button("🔄 Regenerar y Cargar QR a la Izquierda", key="btn_ejecutar_reimpresion_limpio", use_container_width=True):
-                    if id_a_recuperar in lista_ids_hoy:
+                    if id_a_recuperar:
                         try:
-                            qr_reimp = qrcode.QRCode(version=1, box_size=8, border=1)
-                            qr_reimp.add_data(str(id_a_recuperar))
-                            qr_reimp.make(fit=True)
+                            # Buscar directamente en la colección por ID
+                            doc_ref = db.collection("credenciales_activas_dia").document(id_a_recuperar).get()
                             
-                            buf_reimp = io.BytesIO()
-                            qr_reimp.make_image(fill_color="black", back_color="white").save(buf_reimp, format="PNG")
-                            
-                            st.session_state.qr_render_actual = buf_reimp.getvalue()
-                            st.session_state.id_render_actual = id_a_recuperar
-                            
-                            st.toast(f"🎟️ Ficha #{id_a_recuperar} cargada con éxito a la izquierda.")
-                            st.fragment(lambda: None)
-                            st.rerun()
+                            if doc_ref.exists:
+                                datos_credencial = doc_ref.to_dict()
+                                nombre_encontrado = datos_credencial.get("NombreCosechador", "Sin Nombre")
+                                
+                                qr_reimp = qrcode.QRCode(version=1, box_size=8, border=1)
+                                qr_reimp.add_data(str(id_a_recuperar))
+                                qr_reimp.make(fit=True)
+                                
+                                buf_reimp = io.BytesIO()
+                                qr_reimp.make_image(fill_color="black", back_color="white").save(buf_reimp, format="PNG")
+                                
+                                st.session_state.qr_render_actual = buf_reimp.getvalue()
+                                st.session_state.id_render_actual = id_a_recuperar
+                                st.session_state.nombre_render_actual = nombre_encontrado
+                                
+                                st.toast(f"🎟️ Ficha #{id_a_recuperar} de {nombre_encontrado} cargada con éxito a la izquierda.")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ El ID #{id_a_recuperar} no existe registrado en la base de datos.")
                         except Exception as e_reimp:
                             st.error(f"❌ Error al reconstruir el código QR: {e_reimp}")
-                    elif id_a_recuperar == "":
-                        st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
                     else:
-                        st.error(f"❌ El ID #{id_a_recuperar} no ha sido enrolado el día de hoy en este fundo.")
+                        st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
             else:
-                st.info("📝 No hay operarios matriculados hoy.")
+                st.info("📝 No hay operarios matriculados.")
         except Exception as e_t:
             st.caption(f"Nota de visualización de asistencia: {e_t}")
-
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
     # Inicialización segura de estados para el Mesón si no existen
@@ -1205,7 +1215,7 @@ with tab_terminal:
                             import zoneinfo
                             
                             tz_cl = zoneinfo.ZoneInfo("America/Santiago")
-                            fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+                            fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%d/%m/%Y")
                             
                             doc_ref = db.collection("credenciales_activas_dia").document(str(id_num)).get()
                             
@@ -1236,51 +1246,104 @@ with tab_terminal:
 
         fragmento_lector_ficha_express()
 
-        # --- BOTONES DE MERMA BAJO EL LECTOR DE LA FICHA EXPRESS ---
+        # --- BOTONES DE MERMA CON FAMILIA Y VARIEDAD (ESTILO FLORES) ---
         st.markdown("<hr style='margin:15px 0; border-color:#334155;'>", unsafe_allow_html=True)
         st.markdown("<h4 style='margin:0 0 5px 0; color:#f87171;'>🗑️ Registro de Mermas</h4>", unsafe_allow_html=True)
-        st.caption("Seleccione una merma para reemplazar la flor en el mesón:")
+        
+        # Inicializar estado para la familia de mermas si no existe
+        if "familia_activa_merma" not in st.session_state:
+            st.session_state.familia_activa_merma = ""
 
         tiene_rut_merma = st.session_state.get("rut_cosechador", "") != ""
 
+        # Consultar mermas desde Firestore y agruparlas por familia
         try:
             mermas_docs = db.collection("merma").stream()
             lista_mermas_db = [doc.to_dict() for doc in mermas_docs]
         except Exception:
             lista_mermas_db = []
 
-        if not lista_mermas_db:
-            lista_mermas_db = [
-                {"codigo": "M01", "merma": "Merma por Calidad"},
-                {"codigo": "M02", "merma": "Merma por Rotura"}
-            ]
+        # Estructurar las mermas en un diccionario por familia dinámicamente
+        diccionario_mermas_dinamico = {}
+        for m in lista_mermas_db:
+            fam = m.get("familia", "GENERAL").strip().upper()
+            if not fam:
+                fam = "GENERAL"
+            if fam not in diccionario_mermas_dinamico:
+                diccionario_mermas_dinamico[fam] = []
+            diccionario_mermas_dinamico[fam].append({
+                "codigo": m.get("codigo", "M00"),
+                "nombre": m.get("merma", "Merma Huerto"),
+                "variedad": m.get("variedad", "")
+            })
 
-        for i in range(0, len(lista_mermas_db), 2):
-            par_mermas = lista_mermas_db[i:i+2]
-            cols_m = st.columns(2)
-            for idx_m, m_item in enumerate(par_mermas):
-                idx_abs_m = i + idx_m
-                with cols_m[idx_m]:
-                    cod_m = m_item.get("codigo", "M00")
-                    nom_m = m_item.get("merma", "Merma General")
-                    
-                    st.html(f"""
-                    <div style="background-color: #2a1b1b; border: 1px solid #7f1d1d; border-radius: 10px; padding: 10px 12px; margin-bottom: 4px; border-left: 6px solid #ef4444;">
-                        <div style="color: #fca5a5; font-size: 14px; font-weight: bold; font-family: system-ui, -apple-system, sans-serif;">{nom_m}</div>
-                        <div style="color: #94a3b8; font-size: 11px; font-family: system-ui, -apple-system, sans-serif;">Cód. Merma: {cod_m}</div>
-                    </div>
-                    """)
+        # Fallback si no hay registros en la base de datos
+        if not diccionario_mermas_dinamico:
+            diccionario_mermas_dinamico = {
+                "CALIDAD": [{"codigo": "M01", "nombre": "Merma Huerto", "variedad": "Estándar"}],
+                "ROTURA": [{"codigo": "M02", "nombre": "Merma Huerto", "variedad": "Física"}]
+            }
 
-                    if st.button(f"Seleccionar {nom_m}", key=f"btn_merma_express_{cod_m}_{idx_abs_m}", use_container_width=True, disabled=not tiene_rut_merma):
-                        st.session_state.flor_seleccionada_meson = {
-                            "codigo": cod_m, 
-                            "nombre": f"Merma: {nom_m}", 
-                            "color": "#ef4444",
-                            "es_merma": True
-                        }
-                        st.session_state.cantidad_varas_meson = 30
-                        st.rerun()
+        # Seleccionar la primera familia por defecto si la actual no es válida
+        familias_mermas_lista = list(diccionario_mermas_dinamico.keys())
+        if st.session_state.familia_activa_merma not in familias_mermas_lista and familias_mermas_lista:
+            st.session_state.familia_activa_merma = familias_mermas_lista[0]
+
+        st.caption("Seleccione la familia de merma:")
         
+        # Renderizado de Botones de Familia de Mermas (en columnas de 2)
+        for i in range(0, len(familias_mermas_lista), 2):
+            par_fam_mermas = familias_mermas_lista[i:i+2]
+            cols_fm = st.columns(2)
+            for idx_fm, fam_m_item in enumerate(par_fam_mermas):
+                with cols_fm[idx_fm]:
+                    es_activa_m = (st.session_state.familia_activa_merma == fam_m_item)
+                    tipo_b_m = "primary" if es_activa_m else "secondary"
+                    
+                    if st.button(f"🗑️ {fam_m_item}", key=f"btn_grid_fam_merma_{fam_m_item.replace(' ', '_')}", use_container_width=True, type=tipo_b_m):
+                        st.session_state.familia_activa_merma = fam_m_item
+                        st.rerun()
+
+        st.markdown("<hr style='margin:10px 0; border-color:#334155;'>", unsafe_allow_html=True)
+
+        # --- RENDERIZADO DE VARIEDADES DE MERMA DE LA FAMILIA ACTIVA ---
+        familia_merma_actual = st.session_state.familia_activa_merma
+        lista_mermas_brutas = diccionario_mermas_dinamico.get(familia_merma_actual, [])
+        
+        # Ordenamos alfabéticamente por nombre/variedad
+        lista_mermas_render = sorted(lista_mermas_brutas, key=lambda x: str(x.get("nombre", "")).lower())
+
+        if lista_mermas_render:
+            st.markdown(f"<p style='color:#94a3b8; font-size:12px; margin-bottom:8px;'>Variedades en {familia_merma_actual}:</p>", unsafe_allow_html=True)
+            
+            for i in range(0, len(lista_mermas_render), 2):
+                bloque_par_m = lista_mermas_render[i:i+2]
+                cols_mm = st.columns(2)
+                for idx_mm, m_item in enumerate(bloque_par_m):
+                    indice_abs_mm = i + idx_mm
+                    with cols_mm[idx_mm]:
+                        cod_m = m_item.get("codigo", "M00")
+                        nom_m = m_item.get("nombre", "Merma General")
+                        var_m = m_item.get("variedad", "")
+                        
+                        texto_mostrar = f"{nom_m} - {var_m}" if var_m else nom_m
+
+                        st.html(f"""
+                        <div style="background-color: #2a1b1b; border: 1px solid #7f1d1d; border-radius: 10px; padding: 10px 12px; margin-bottom: 4px; border-left: 6px solid #ef4444;">
+                            <div style="color: #fca5a5; font-size: 13px; font-weight: bold; font-family: system-ui, -apple-system, sans-serif;">{texto_mostrar}</div>
+                            <div style="color: #94a3b8; font-size: 11px; font-family: system-ui, -apple-system, sans-serif;">Cód. Merma: {cod_m}</div>
+                        </div>
+                        """)
+
+                        if st.button("Seleccionar", key=f"btn_merma_express_{cod_m}_{indice_abs_mm}", use_container_width=True, disabled=not tiene_rut_merma):
+                            st.session_state.flor_seleccionada_meson = {
+                                "codigo": cod_m, 
+                                "nombre": f"Merma: {texto_mostrar}", 
+                                "color": "#ef4444",
+                                "es_merma": True
+                            }
+                            st.session_state.cantidad_varas_meson = 30
+                            st.rerun()
 with col_panel_central_derecho:
         if "flor_seleccionada_meson" not in st.session_state: 
             st.session_state.flor_seleccionada_meson = None
@@ -1443,7 +1506,7 @@ with col_derecha_consolidacion:
                         tz_cl = zoneinfo.ZoneInfo("America/Santiago")
 
                         try:
-                            fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%Y-%m-%d")
+                            fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%d/%m/%Y")
                             
                             credenciales_query = db.collection("credenciales_activas_dia")\
                                 .where("FechaFiltro", "==", fecha_hoy_busqueda_str)\
@@ -1511,7 +1574,7 @@ with col_derecha_consolidacion:
                         
                         db.collection("cosecha_diaria").add({
                             "fecha_registro": ahora_envio,
-                            "FechaFiltro": ahora_envio.strftime("%Y-%m-%d"),
+                            "FechaFiltro": ahora_envio.strftime("%d/%m/%Y"),
                             "rut_cosechador": st.session_state.rut_cosechador.upper(),
                             "nombre_cosechador": nombre_cosechador_encontrado,
                             "origen_huerto": huerto_seleccionado_meson,
@@ -1552,7 +1615,7 @@ with col_derecha_consolidacion:
                         st.error(f"Error al inyectar datos: {e}")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-# Historial Diario de Terreno
+# --- Historial Diario de Terreno ---
             st.write("")
             st.markdown(
                 "<h3 style='color:#f8fafc;'>📋 Historial del Día (Servidor Google Cloud)</h3>",
@@ -1574,28 +1637,20 @@ with col_derecha_consolidacion:
                     key="filtro_fecha_historial_meson"
                 )
 
-                # 2. Convertimos la fecha seleccionada a texto plano 'YYYY-MM-DD'
-                filtro_fecha_str = filtro_fecha.strftime("%Y-%m-%d")
+                # 2. Convertimos la fecha seleccionada al formato 'dd/mm/yyyy' para que coincida con Firestore
+                filtro_fecha_str = filtro_fecha.strftime("%d/%m/%Y")
 
-                # Clave de caché única basada en la fecha seleccionada para recargar al cambiar el selector
-                cache_key = f"lista_datos_dia_cache_{filtro_fecha_str}"
-
-                if cache_key not in st.session_state or not st.session_state[cache_key]:
-                    try:
-                        # 3. Consulta a Firestore usando FechaFiltro para la fecha seleccionada
-                        docs_hoy = (
-                            db.collection("cosecha_diaria")
-                            .where("FechaFiltro", "==", filtro_fecha_str)
-                            .stream()
-                        )
-
-                        st.session_state[cache_key] = [
-                            doc.to_dict() for doc in docs_hoy
-                        ]
-                    except Exception as e_carga:
-                        st.session_state[cache_key] = []
-
-                lista_operario_real = st.session_state.get(cache_key, [])
+                # 3. Consulta directa y en tiempo real a Firestore (sin caché estática) para reflejar los datos nuevos al instante
+                lista_operario_real = []
+                try:
+                    docs_hoy = (
+                        db.collection("cosecha_diaria")
+                        .where("FechaFiltro", "==", filtro_fecha_str)
+                        .stream()
+                    )
+                    lista_operario_real = [doc.to_dict() for doc in docs_hoy]
+                except Exception as e_carga:
+                    lista_operario_real = []
 
                 if lista_operario_real:
                     try:
@@ -1720,6 +1775,9 @@ with tab_auditoria:
         cc_seleccionado_filtro = st.selectbox("🏭 CENTRO DE COSTO:", options=lista_cc_selector, key="select_cc_auditoria")
         ignorar_cc = st.checkbox("Ignorar Centro Costo", value=True, key="chk_ignorar_cc")
         
+        # 📋 Tipo de Registro movido aquí abajo de Centro de Costo
+        filtro_tipo_registro = st.selectbox("📋 TIPO DE REGISTRO:", options=["Todos", "Solo Producción", "Solo Merma"], key="select_tipo_registro_auditoria")
+                
     with col_f3:
         lista_huerto_cargada = []
         try:
@@ -1737,6 +1795,9 @@ with tab_auditoria:
         
         huerto_seleccionado_filtro = st.selectbox("📍 ORIGEN HUERTO:", options=lista_huerto_selector, key="select_huerto_auditoria")
         ignorar_huerto = st.checkbox("Ignorar Huerto", value=True, key="chk_ignorar_huerto")
+
+        # ⚡ Nuevo filtro de ID Express ubicado a su lado / debajo
+        filtro_id_express = st.text_input("⚡ ID EXPRESS:", placeholder="ID exacto...", key="input_id_express_audit")
 
     with col_f4:
         lista_cont_cargada = []
@@ -1759,9 +1820,6 @@ with tab_auditoria:
     with col_f5:
         filtro_rut_cosechador = st.text_input("🔍 RUT COSECHADOR:", placeholder="Ej: 123456789", key="input_rut_audit")
         filtro_rut = filtro_rut_cosechador
-        
-        # Opciones para filtrar por merma en el Panel de Auditoría
-        filtro_tipo_registro = st.selectbox("📋 TIPO DE REGISTRO:", options=["Todos", "Solo Producción", "Solo Merma"], key="select_tipo_registro_auditoria")
 
     # 2. El Botón de Ejecutar Búsqueda en la Nube
     if st.button("🚀 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_nube"):
@@ -1810,6 +1868,12 @@ with tab_auditoria:
                     if "rut_cosechador" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["rut_cosechador"].str.replace("-", "").str.lower() == rut_buscado_limpio]
                 
+                # Filtro ID Express
+                if filtro_id_express.strip():
+                    id_buscado = filtro_id_express.strip().lower()
+                    if "id_documento_firebase" in df_auditoria.columns:
+                        df_auditoria = df_auditoria[df_auditoria["id_documento_firebase"].str.lower().str.contains(id_buscado)]
+                
                 if filtro_tipo_registro == "Solo Merma":
                     if "es_merma" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["es_merma"] == True]
@@ -1822,13 +1886,13 @@ with tab_auditoria:
                 if not df_auditoria.empty:
                     if "fecha_registro" in df_auditoria.columns:
                         try:
-                            df_auditoria["fecha"] = pd.to_datetime(df_auditoria["fecha_registro"]).dt.strftime('%d/%b/%Y')
+                            df_auditoria["fecha"] = pd.to_datetime(df_auditoria["fecha_registro"]).dt.strftime('%d/%m/%Y')
                         except:
                             df_auditoria["fecha"] = df_auditoria["fecha_registro"]
                     else:
                         df_auditoria["fecha"] = ""
 
-                    # Formateo visual con nombres compactos (Incluyendo el Origen de Huerto y su código)
+                    # Formateo visual con nombres compactos
                     df_auditoria["rut op."] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
                     df_auditoria["nombre op."] = df_auditoria.get("nombre_cosechador", "n/a")
                     df_auditoria["huerto"] = df_auditoria.get("origen_huerto", "n/a")
@@ -1860,7 +1924,6 @@ with tab_auditoria:
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
         
-        # ⚠️ Verificamos que 'v.' y campos de huerto estén presentes en el DataFrame de sesión
         if "v." not in df_ver.columns and "cantidad_varas" in df_ver.columns:
             df_ver["v."] = df_ver["cantidad_varas"].astype(int)
         if "huerto" not in df_ver.columns and "origen_huerto" in df_ver.columns:
@@ -1869,7 +1932,6 @@ with tab_auditoria:
             df_ver["sku huerto"] = df_ver["codigo_origen_huerto"]
         st.session_state["df_auditoria_activo"] = df_ver
 
-        # ⚠️ Nombres exactos de las columnas en la vista (Incluyendo explícitamente "huerto" y "sku huerto")
         columnas_vista = [
             "fecha", "rut op.", "nombre op.", "huerto", "sku huerto", 
             "cont.", "rut cont.", "sku c.", "c.c.", "sku c.c.", 
@@ -1881,11 +1943,9 @@ with tab_auditoria:
         st.markdown("---")
         st.info("✏️ **Modo Edición Activado:** Haz doble clic sobre cualquier celda de la tabla inferior para modificar sus valores. Al terminar, presiona el botón de guardar para actualizar la base de datos en la nube.")
         
-        # 📐 Altura dinámica: Calcula exactamente los píxeles necesarios según la cantidad de filas
         num_filas = len(df_ver)
         altura_calculada = min(max((num_filas + 1) * 38, 100), 400)
         
-        # Pasamos el dataframe filtrado a la vista asegurando el uso de cols_presentes
         df_editado_vista = st.data_editor(
             df_ver[cols_presentes], 
             use_container_width=True, 
@@ -1908,7 +1968,6 @@ with tab_auditoria:
                     barra_progreso = st.progress(0, text="Sincronizando cambios con la nube...")
                     total_filas = len(df_editado_vista)
                     
-                    # Cargar un diccionario auxiliar de códigos de huerto por nombre desde Firestore para asegurar consistencia
                     mapa_codigos_huerto = {}
                     try:
                         for doc in db.collection("config_origen_huerto").stream():
@@ -1925,7 +1984,6 @@ with tab_auditoria:
                         es_merma_calculada = familia_actualizada.lower() == "merma"
                         
                         huerto_actualizado = str(row.get("huerto", "")).strip()
-                        # Buscar si el usuario editó el nombre del huerto para autocompletar su código correspondiente, o mantener el valor de la celda
                         sku_huerto_actualizado = str(row.get("sku huerto", "")).strip()
                         if huerto_actualizado.lower() in mapa_codigos_huerto:
                             sku_huerto_actualizado = mapa_codigos_huerto[huerto_actualizado.lower()]
@@ -1967,63 +2025,89 @@ with tab_auditoria:
 # ==================================================================
     st.write("---")
     st.markdown("<h2 style='color:#38bdf8;'>🧾 Exportación y Comprobantes de Cosecha</h2>", unsafe_allow_html=True)
-        
+    
     tz_local = zoneinfo.ZoneInfo("America/Santiago")
     inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
     fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
-        
+    
     col_admin_kame, col_admin_vale = st.columns(2)
 
     with col_admin_kame:
-            st.markdown("### Planilla Contable")
-            if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
-                try:
-                    if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
-                        df_kame_source = st.session_state["df_auditoria_activo"].copy()
-                    
-                        df_kame_source["CentroCosto"] = df_kame_source.get("centro_de_costo", df_kame_source.get("c.c.", ""))
-                        df_kame_source["CodigoCentroCosto"] = df_kame_source.get("codigo_centro_costo", df_kame_source.get("sku c.c.", ""))
-                        df_kame_source["OrigenHuerto"] = df_kame_source.get("origen_huerto", df_kame_source.get("huerto", ""))
-                        df_kame_source["CodigoOrigenHuerto"] = df_kame_source.get("codigo_origen_huerto", df_kame_source.get("sku huerto", ""))
-                        df_kame_source["RutContratista"] = df_kame_source.get("rut_contratista", df_kame_source.get("rut cont.", ""))
-                        df_kame_source["ContratistaNombre"] = df_kame_source.get("contratista_nombre", df_kame_source.get("cont.", ""))
-                        df_kame_source["RutCosechador"] = df_kame_source.get("rut_cosechador", df_kame_source.get("rut op.", ""))
-                        df_kame_source["NombreCosechador"] = df_kame_source.get("nombre_cosechador", df_kame_source.get("nombre op.", ""))
-                        df_kame_source["CodigoArticulo"] = df_kame_source.get("codigo_flor", df_kame_source.get("sku flor", ""))
-                        df_kame_source["DescripcionArticulo"] = df_kame_source.get("variedad_flor", df_kame_source.get("variedad", ""))
-                        df_kame_source["CantidadVaras"] = df_kame_source.get("cantidad_varas", df_kame_source.get("v.", 0)).astype(int)
-
-                        columnas_kame = [
-                            "CentroCosto", "CodigoCentroCosto", "OrigenHuerto", "CodigoOrigenHuerto", 
-                            "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", 
-                            "CodigoArticulo", "DescripcionArticulo", "CantidadVaras"
-                        ]
-                    
-                        cols_presentes_kame = [c for c in columnas_kame if c in df_kame_source.columns]
-                    
-                        df_agrupado_kame = df_kame_source[cols_presentes_kame].groupby(
-                            [
-                                "CentroCosto", "CodigoCentroCosto", "OrigenHuerto", "CodigoOrigenHuerto", 
-                                "RutContratista", "ContratistaNombre", "RutCosechador", "NombreCosechador", 
-                                "CodigoArticulo", "DescripcionArticulo"
-                            ], 
-                            as_index=False
-                        )["CantidadVaras"].sum()
-
-                        csv_kame = df_agrupado_kame.to_csv(index=False, sep=";").encode('utf-8')
-                    
-                        st.success("Planilla generada con éxito.")
-                        st.download_button(
-                            label="📥 DESCARGAR PLANILLA KAME", 
-                            data=csv_kame, 
-                            file_name=f"KAME_Cosecha_{filtro_fecha}.csv", 
-                            mime="text/csv", 
-                            use_container_width=True
-                        )
+        st.markdown("### Planilla Contable")
+        if st.button("Procesar y Preparar .CSV", key="btn_kame_process", use_container_width=True, type="primary"):
+            try:
+                if st.session_state.get("df_auditoria_activo") is not None and not st.session_state["df_auditoria_activo"].empty:
+                    df_source = st.session_state["df_auditoria_activo"].copy()
+                
+                    # Crear un nuevo DataFrame con las 13 columnas exactas requeridas por KAME
+                    df_kame = pd.DataFrame()
+                    num_filas = len(df_source)
+                
+                    # 1. Columnas fijas
+                    df_kame["Tipo Movimiento"] = ["ENTRADA"] * num_filas
+                    df_kame["Motivo Movimiento"] = ["Apertura"] * num_filas
+                    df_kame["FolioAuto"] = ["S"] * num_filas
+                    df_kame["Folio"] = ["11111"] * num_filas
+                    df_kame["Bodega Entrada"] = ["PACKING 1"] * num_filas
+                    df_kame["Bodega Salida"] = [""] * num_filas
+                    df_kame["Ficha"] = ["77.517.427-7"] * num_filas
+                    df_kame["PrecioUnitario"] = [1] * num_filas
+                
+                    # 2. Columnas dinámicas mapeadas desde la tabla de búsqueda/firebase
+                    # Fecha: se obtiene de fecha o FechaFiltro
+                    if "fecha" in df_source.columns:
+                        df_kame["Fecha"] = df_source["fecha"].values
+                    elif "FechaFiltro" in df_source.columns:
+                        df_kame["Fecha"] = df_source["FechaFiltro"].values
                     else:
-                        st.warning("⚠️ No hay registros en memoria. Ejecuta primero la 'Búsqueda en la Nube' arriba.")
-                except Exception as e: 
-                    st.error(f"Error al procesar KAME: {e}")
+                        df_kame["Fecha"] = [filtro_fecha.strftime('%d/%m/%Y')] * num_filas
+                
+                    # Glosa: se obtiene de variedad_flor
+                    df_kame["Glosa"] = df_source.get("variedad_flor", df_source.get("variedad", "")).values
+                
+                    # SKU: se obtiene de codigo_flor
+                    df_kame["SKU"] = df_source.get("codigo_flor", df_source.get("sku flor", "")).values
+                
+                    # Nombre Unidad de Negocio: se obtiene de centro_costo
+                    df_kame["Nombre Unidad de Negocio"] = df_source.get("centro_costo", df_source.get("c.c.", "")).values
+                
+                    # Cantidad: se obtiene de cantidad_varas
+                    col_vara_key = "cantidad_varas" if "cantidad_varas" in df_source.columns else ("v." if "v." in df_source.columns else df_source.columns[-1])
+                    df_kame["Cantidad"] = df_source.get(col_vara_key, 0).astype(int).values
+
+                    # Orden estricto de las 13 columnas
+                    columnas_kame_13 = [
+                        "Tipo Movimiento",
+                        "Motivo Movimiento",
+                        "FolioAuto",
+                        "Folio",
+                        "Bodega Entrada",
+                        "Bodega Salida",
+                        "Ficha",
+                        "Fecha",
+                        "Glosa",
+                        "SKU",
+                        "Nombre Unidad de Negocio",
+                        "Cantidad",
+                        "PrecioUnitario"
+                    ]
+                
+                    df_kame = df_kame[columnas_kame_13]
+
+                    csv_kame = df_kame.to_csv(index=False, sep=";", encoding="utf-8-sig")
+            
+                    st.success("Planilla generada con éxito.")
+                    st.download_button(
+                        label="📥 DESCARGAR PLANILLA KAME", 
+                        data=csv_kame, 
+                        file_name=f"KAME_Cosecha_{filtro_fecha}.csv", 
+                        mime="text/csv", 
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("⚠️ No hay registros en memoria. Ejecuta primero la 'Búsqueda en la Nube' arriba.")
+            except Exception as e: 
+                st.error(f"Error al procesar KAME: {e}")
 
     with col_admin_vale:
         st.markdown("### Opciones de Impresión")
@@ -2287,24 +2371,26 @@ with tab_auditoria:
         with st.form("form_add_merma", clear_on_submit=True):
             st.markdown("### ➕ Registrar Nueva Merma")
             nueva_merma_codigo = st.text_input("Código de Merma:", placeholder="Ej: MH01", key="in_merma_cod").strip()
-            nueva_merma_nombre = st.text_input("Descripción / Nombre de la Merma:", placeholder="Ej: MERMA HUERTO ROSA", key="in_merma_nom").strip()
+            nueva_merma_nombre = st.text_input("Descripción de KAME:", placeholder="Ej: MERMA HUERTO ROSA", key="in_merma_nom").strip()
             nueva_merma_familia = st.text_input("Familia:", placeholder="Ej: ROSA", key="in_merma_fam").strip()
+            nueva_merma_variedad = st.text_input("Variedad:", placeholder="Ej: Red Globe / Royal Gala", key="in_merma_var").strip()
                 
             if st.form_submit_button("Registrar Merma", use_container_width=True):
                 if nueva_merma_codigo and nueva_merma_nombre:
                     try:
                         db.collection("merma").add({
                             "codigo": nueva_merma_codigo,
-                            "merma": nueva_merma_nombre,
+                            "descripcion_kame": nueva_merma_nombre,
                             "familia": nueva_merma_familia,
+                            "variedad": nueva_merma_variedad,
                             "fecha_creacion": datetime.datetime.now()
                         })
-                        st.success(f"✅ Merma '{nueva_merma_nombre}' (Código: {nueva_merma_codigo}) registrada correctamente en la colección 'merma'.")
+                        st.success(f"✅ Merma '{nueva_merma_nombre}' (Variedad: {nueva_merma_variedad if nueva_merma_variedad else 'N/A'}) registrada correctamente en la colección 'merma'.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error al guardar la merma en Firebase: {e}")
                 else:
-                    st.warning("⚠️ Todos los campos (Código y Merma) son obligatorios.")
+                    st.warning("⚠️ Los campos Código y Descripción son obligatorios.")
 
     with s_huerto:
         with st.form("form_add_origen_huerto", clear_on_submit=True):

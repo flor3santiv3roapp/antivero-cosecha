@@ -30,6 +30,7 @@ if not firebase_admin._apps:
             st.error(f"Error crítico: {e_local}")
 
 db = firestore.client()
+
 # ==================================================================
 # LECTURA DINÁMICA AVANZADA PARA FILTROS DE AUDITORÍA
 # ==================================================================
@@ -210,6 +211,7 @@ try:
 
 except Exception as e:
     st.error(f"Error cargando configuraciones operacionales: {e}")
+
 # ==================================================================
 # CONSTRUCCIÓN DEL DICCIONARIO DESDE DOCUMENTOS PLANOS DE FIRESTORE
 # ==================================================================
@@ -1463,7 +1465,20 @@ with col_derecha_consolidacion:
                 else:
                     st.markdown("**Item:** <span style='color:#94a3b8; font-weight:bold;'>Ninguno</span>", unsafe_allow_html=True)
                         
-# 📍 Apartado para seleccionar el Origen de Huerto desde Firebase (config_origen_huerto)
+                # 📍 Selector de Fecha de Registro / Inyección (Por defecto: Día Actual en Chile)
+                import datetime
+                import zoneinfo
+                
+                tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+                fecha_actual_chile = datetime.datetime.now(tz_cl).date()
+                
+                fecha_ingreso_meson = st.date_input(
+                    "📅 Fecha de Registro:",
+                    value=fecha_actual_chile,
+                    key="input_fecha_ingreso_meson"
+                )
+
+                # 📍 Apartado para seleccionar el Origen de Huerto desde Firebase (config_origen_huerto)
                 huertos_disponibles = []
                 try:
                     docs_huertos = db.collection("config_origen_huerto").stream()
@@ -1519,9 +1534,6 @@ with col_derecha_consolidacion:
                 st.markdown('<div class="btn-verde">', unsafe_allow_html=True)
                 if st.button("✅ Confirmar e Inyectar", key="btn_inj", use_container_width=True, disabled=bloq_f):
                     try:
-                        import datetime
-                        import zoneinfo
-                        
                         # A. Recuperamos datos del estado de la tablet
                         cc_nombre = st.session_state.get("cc_activo_meson", "Chipana")
                         contratista_nombre = st.session_state.get("contratista_activo_meson", "INDEPENDIENTE")
@@ -1529,8 +1541,6 @@ with col_derecha_consolidacion:
                         # 🔍 Buscamos de forma automática el nombre del cosechador registrado previamente en el día
                         rut_limpio_busqueda = st.session_state.get("rut_cosechador", "").strip().lower()
                         nombre_cosechador_encontrado = "Sin Nombre"
-                        
-                        tz_cl = zoneinfo.ZoneInfo("America/Santiago")
 
                         try:
                             fecha_hoy_busqueda_str = datetime.datetime.now(tz_cl).strftime("%d/%m/%Y")
@@ -1596,8 +1606,9 @@ with col_derecha_consolidacion:
                             variedad_final = item_seleccionado["nombre"]
                             codigo_articulo = str(item_seleccionado["codigo"])
                                     
-                        # E. Envío estructurado a Firestore con hora exacta de Chile forzada (incluyendo origen de huerto y su código)
-                        ahora_envio = datetime.datetime.now(tz_cl)
+                        # E. Construcción de fecha combinando la fecha seleccionada en el componente y la hora actual chilena
+                        hora_actual_chile = datetime.datetime.now(tz_cl).time()
+                        ahora_envio = datetime.datetime.combine(fecha_ingress_meson := fecha_ingreso_meson, hora_actual_chile).replace(tzinfo=tz_cl)
                         
                         db.collection("cosecha_diaria").add({
                             "fecha_registro": ahora_envio,

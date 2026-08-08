@@ -30,394 +30,6 @@ if not firebase_admin._apps:
             st.error(f"Error crítico: {e_local}")
 
 db = firestore.client()
-
-# ==================================================================
-# 4.C FUNCIÓN ESPEJO: ENROLAMIENTO MATINAL (DISEÑO EXACTO FOTO)
-# =================================================================
-import streamlit as st
-import datetime
-import io
-import qrcode
-import zoneinfo
-
-def validar_rut_chileno_local(rut_limpio):
-    """
-    Valida matemáticamente un RUT chileno limpio (ej: '000000000').
-    Retorna True si el dígito verificador es correcto.
-    """
-    if not rut_limpio or len(rut_limpio) < 2:
-        return False
-    try:
-        cuerpo = rut_limpio[:-1]
-        dv = rut_limpio[-1].upper()
-        
-        suma = 0
-        multiplicador = 2
-        for c in reversed(cuerpo):
-            if not c.isdigit():
-                return False
-            suma += int(c) * multiplicador
-            multiplicador = 2 if multiplicador == 7 else multiplicador + 1
-            
-        dv_esperado = 11 - (suma % 11)
-        if dv_esperado == 11:
-            dv_correcto = "0"
-        elif dv_esperado == 10:
-            dv_correcto = "K"
-        else:
-            dv_correcto = str(dv_esperado)
-            
-        return dv == dv_correcto
-    except Exception:
-        return False
-
-@st.fragment
-def dibujar_teclado_enrolamiento_antivero():
-    st.html("""
-        <style>
-            .cuadro-teclado-enrol { max-width: 350px; margin: 10px auto; box-sizing: border-box; }
-            .cuadro-teclado-enrol [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
-            .cuadro-teclado-enrol div[data-testid="column"] { margin-bottom: 0 !important; }
-            
-            /* Visor Estilizado */
-            .rut-display-box {
-                color: #38bdf8 !important; font-weight: bold !important;
-                border: 1px solid #334155 !important; border-radius: 8px !important;
-                padding: 10px; text-align: center; display: flex; align-items: center; justify-content: center;
-                box-sizing: border-box;
-            }
-            
-            /* Estilo Barra Azul Horizontal de ENTER original */
-            .cuadro-teclado-enrol .barra-azul-enter-enrol button { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; height: 54px !important; }
-            .cuadro-teclado-enrol .barra-azul-enter-enrol button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
-        </style>
-    """)
-    
-    st.subheader("📍 Identificación de Campo (Matinal)")
-    
-    opciones_cc = list(lista_centros_costo_dinamica)
-    if "Seleccione Centro de Costo..." not in opciones_cc:
-        opciones_cc.insert(0, "Seleccione Centro de Costo...")
-        
-    opciones_contratista = list(lista_contratistas_dinamica)
-    if "Seleccione Contratista..." not in opciones_contratista:
-        opciones_contratista.insert(0, "Seleccione Contratista...")
-
-    def formatear_centro_costo(opcion):
-        if opcion == "Seleccione Centro de Costo...":
-            return opcion
-        if isinstance(opcion, dict):
-            return f"{opcion.get('nombre', 'Sin Nombre')} ({opcion.get('codigo', 'CC 00')})"
-        try:
-            docs = db.collection("config_centros_costo").where("nombre", "==", opcion).limit(1).get()
-            if docs:
-                d = docs[0].to_dict()
-                return f"{opcion} ({d.get('codigo', 'CC 00')})"
-        except Exception:
-            pass
-        return str(opcion)
-
-    def formatear_contratista(opcion):
-        if opcion == "Seleccione Contratista...":
-            return opcion
-        if isinstance(opcion, dict):
-            return f"{opcion.get('rut', '00.000.000-0')} | {opcion.get('nombre', 'Sin Nombre')} ( {opcion.get('codigo', 'xxxx')} )"
-        try:
-            docs = db.collection("config_contratistas").where("nombre", "==", opcion).limit(1).get()
-            if docs:
-                d = docs[0].to_dict()
-                return f"{d.get('rut', '00.000.000-0')} | {opcion} ( {d.get('codigo', 'xxxx')} )"
-        except Exception:
-            pass
-        return str(opcion)
-    
-    cc_manana = st.selectbox(
-        "Centro de Costo / Cuartel:",
-        options=opciones_cc,
-        index=0,
-        format_func=formatear_centro_costo,
-        key="enrol_centro_costo"
-    )
-    
-    contratista_manana = st.selectbox(
-        "Empresa / Contratista:",
-        options=opciones_contratista,
-        index=0,
-        format_func=formatear_contratista,
-        key="enrol_contratista"
-    )
-
-    st.write("")
-    st.markdown("<label>👤 RUT o Escaneo QR Cosechador</label>", unsafe_allow_html=True)
-
-    rut_ingresado_fisico = st.text_input(
-        "DIGITE O ESCANEE EL QR AQUÍ...",
-        value="",
-        key="input_unico_fisico_antivero",
-        placeholder="Ej: 12345678-9 o URL del carnet"
-    )
-
-    rut_procesar = rut_ingresado_fisico.strip()
-    nombre_extraido_qr = ""
-
-    if "run=" in rut_procesar.lower() or "rut=" in rut_procesar.lower() or "http" in rut_procesar.lower():
-        try:
-            from urllib.parse import parse_qs, urlparse
-            parsed_url = urlparse(rut_procesar)
-            query_params = parse_qs(parsed_url.query)
-            
-            for param in ["run", "rut", "RUN", "RUT"]:
-                if param in query_params:
-                    rut_procesar = query_params[param][0]
-                    break
-            
-            for param_nom in ["nombre", "nombres", "name", "NOMBRE"]:
-                if param_nom in query_params:
-                    nombre_extraido_qr = query_params[param_nom][0].replace("+", " ").title()
-                    break
-        except Exception:
-            pass
-
-    if nombre_extraido_qr and "input_nombre_operario" in st.session_state:
-        st.session_state["input_nombre_operario"] = nombre_extraido_qr
-
-    rut_crudo = "".join([c for c in rut_procesar.upper() if c.isdigit() or c == "K"])
-    
-    if len(rut_crudo) > 1:
-        cuerpo = rut_crudo[:-1]
-        dv = rut_crudo[-1]
-        cuerpo_puntos = ""
-        for i, char in enumerate(reversed(cuerpo)):
-            if i > 0 and i % 3 == 0:
-                cuerpo_puntos = "." + cuerpo_puntos
-            cuerpo_puntos = char + cuerpo_puntos
-        rut_visible = f"{cuerpo_puntos}-{dv}"
-    else:
-        rut_visible = rut_crudo if rut_crudo else "00.000.000-0"
-    
-    rut_es_valido = validar_rut_chileno_local(rut_crudo)
-    icono_verificacion = "✅" if rut_es_valido else "🛑"
-    
-    st.markdown('<div class="cuadro-teclado-enrol">', unsafe_allow_html=True)
-    
-    col_visor_texto, col_visor_icono = st.columns([3, 1])
-    with col_visor_texto:
-        st.markdown(f'<div class="rut-display-box" style="font-size:20px; min-height:52px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
-    with col_visor_icono:
-        st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:52px; margin-bottom:0; background-color:#1e293b; text-align:center;">{icono_verificacion}</div>', unsafe_allow_html=True)
-        
-    st.write("")
-
-    nombre_operario = st.text_input(
-        "Nombre del Operario:",
-        value="",
-        key="input_nombre_operario",
-        placeholder="Se llena automático con QR o escriba manual"
-    )
-    
-    st.write("")
-    
-    st.markdown('<div class="barra-azul-enter-enrol">', unsafe_allow_html=True)
-    bloqueo_enrol = (
-        not rut_es_valido or 
-        not nombre_operario.strip() or
-        cc_manana == "Seleccione Centro de Costo..." or 
-        contratista_manana == "Seleccione Contratista..."
-    )
-    
-    if st.button("💾 ENTER (Validar Ingreso)", key="btn_enrol_ENTER_M", use_container_width=True, disabled=bloqueo_enrol):
-        try:
-            tz_cl = zoneinfo.ZoneInfo("America/Santiago")
-            ahora_cl = datetime.datetime.now(tz_cl)
-            fecha_hoy_str = ahora_cl.strftime("%d/%m/%Y")
-            rut_limpio = rut_crudo.lower()
-            nombre_limpio = nombre_operario.strip().title()
-            
-            duplicados = db.collection("credenciales_activas_dia")\
-                .where("RutCosechador", "==", rut_limpio)\
-                .limit(1).get()
-                
-            if duplicados:
-                datos_existentes = duplicados[0].to_dict()
-                id_existente = datos_existentes.get("id_express")
-                nombre_registrado = datos_existentes.get("NombreCosechador", nombre_limpio)
-                st.warning(f"⚠️ El operario {nombre_registrado} (RUT {rut_visible}) ya cuenta con la Ficha #{id_existente} asignada previamente. Se recupera su credencial.")
-                
-                qr = qrcode.QRCode(version=1, box_size=8, border=1)
-                qr.add_data(str(id_existente))
-                qr.make(fit=True)
-                buf = io.BytesIO()
-                qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
-                
-                st.session_state.qr_render_actual = buf.getvalue()
-                st.session_state.id_render_actual = id_existente
-                st.session_state.nombre_render_actual = nombre_registrado
-                st.rerun()
-            
-            ya_enrolados = db.collection("credenciales_activas_dia").stream()
-            numeros_ocupados = [int(doc.to_dict().get("id_express")) for doc in ya_enrolados if doc.to_dict().get("id_express")]
-            
-            id_express = 100
-            for num in range(100, 201):
-                if num not in numeros_ocupados:
-                    id_express = num
-                    break
-                    
-            codigo_largo_auditoria = f"{ahora_cl.strftime('%d/%m/%Y')}-{rut_limpio}-{id_express}"
-            
-            cc_valor = cc_manana.get("nombre") if isinstance(cc_manana, dict) else cc_manana
-            contratista_valor = contratista_manana.get("nombre") if isinstance(contratista_manana, dict) else contratista_manana
-
-            db.collection("credenciales_activas_dia").document(str(id_express)).set({
-                "id_express": str(id_express),
-                "RutCosechador": rut_limpio,
-                "NombreCosechador": nombre_limpio,
-                "CentroCosto": cc_valor,
-                "Contratista": contratista_valor,
-                "CodigoLargoAuditoria": codigo_largo_auditoria,
-                "FechaEnrolamiento": ahora_cl,
-                "FechaFiltro": fecha_hoy_str
-            })
-            
-            qr = qrcode.QRCode(version=1, box_size=8, border=1)
-            qr.add_data(str(id_express))
-            qr.make(fit=True)
-            
-            buf = io.BytesIO()
-            qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
-            
-            st.session_state.qr_render_actual = buf.getvalue()
-            st.session_state.id_render_actual = id_express
-            st.session_state.nombre_render_actual = nombre_limpio
-            st.rerun()
-        except Exception as ex:
-            st.error(f"❌ Error en el enrolamiento: {ex}")
-            
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    qr_activo = st.session_state.get("qr_render_actual", None)
-    if "imprimir_zebra_trigger" not in st.session_state:
-        st.session_state.imprimir_zebra_trigger = False
-    if "imprimir_windows_trigger" not in st.session_state:
-        st.session_state.imprimir_windows_trigger = False
-        
-    if qr_activo:
-        st.write("")
-        import base64
-        qr_b64 = base64.b64encode(qr_activo).decode("utf-8")
-        id_actual_str = str(st.session_state.get("id_render_actual", ""))
-        nombre_actual_str = str(st.session_state.get("nombre_render_actual", ""))
-        
-        with st.container(border=True):
-            col_ticket_qr, col_ticket_btn = st.columns([1.3, 1.7])
-            with col_ticket_qr:
-                st.image(qr_activo, caption=f"Ficha #{id_actual_str}\n{nombre_actual_str}", width=150)
-            with col_ticket_btn:
-                st.write("### Opciones de Impresión")
-                
-                if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_print_zebra", use_container_width=True, type="primary"):
-                    st.session_state.imprimir_zebra_trigger = True
-                    st.rerun()
-                    
-                if st.button("🖨️ IMPRIMIR CON WINDOWS (Elegir...)", key="btn_print_windows", use_container_width=True):
-                    st.session_state.imprimir_windows_trigger = True
-                    st.rerun()
-                    
-                if st.button("🗑️ Siguiente Operario", key="clear_qr_view", use_container_width=True):
-                    st.session_state.qr_render_actual = None
-                    st.session_state.id_render_actual = None
-                    st.session_state.nombre_render_actual = None
-                    st.session_state.imprimir_zebra_trigger = False
-                    st.session_state.imprimir_windows_trigger = False
-                    st.rerun()
-                    
-        if st.session_state.imprimir_windows_trigger:
-            st.session_state.imprimir_windows_trigger = False
-            
-            st.components.v1.html(f"""
-                <div id="ticket-imprimible-exclusivo" style="text-align: center; font-family: sans-serif; background: #ffffff !important; color: #000000 !important; padding: 20px; position: fixed; left: -9999px;">
-                    <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
-                    <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
-                    <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
-                    <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
-                </div>
-                
-                <script>
-                    const parentDoc = window.parent.document;
-                    
-                    const viejoEstilo = parentDoc.getElementById("estilo-impresion-dinamico");
-                    if (viejoEstilo) viejoEstilo.remove();
-                    
-                    const viejoContenedor = parentDoc.getElementById("ticket-imprimible-exclusivo");
-                    if (viejoContenedor) viejoContenedor.remove();
-                    
-                    var estilo = parentDoc.createElement('style');
-                    estilo.id = "estilo-impresion-dinamico";
-                    estilo.innerHTML = `
-                        @media print {{
-                            html, body, [data-testid="stAppViewContainer"] {{
-                                background-color: #ffffff !important;
-                                color: #000000 !important;
-                                background: #ffffff !important;
-                            }}
-                            body * {{ 
-                                visibility: hidden !important; 
-                            }}
-                            #ticket-imprimible-exclusivo, #ticket-imprimible-exclusivo * {{ 
-                                visibility: visible !important; 
-                            }}
-                            #ticket-imprimible-exclusivo {{ 
-                                position: absolute !important; 
-                                left: 0 !important; 
-                                top: 0 !important; 
-                                width: 100% !important; 
-                                text-align: center !important; 
-                                background: #ffffff !important;
-                                display: block !important;
-                            }}
-                        }}
-                    `;
-                    parentDoc.head.appendChild(estilo);
-                    
-                    var divTemporal = parentDoc.createElement('div');
-                    divTemporal.id = "ticket-imprimible-exclusivo";
-                    divTemporal.style.cssText = "position:absolute; left:0; top:0; width:100%; text-align:center; background:#ffffff; z-index:999999; display:none;";
-                    divTemporal.innerHTML = `
-                        <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
-                        <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
-                        <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
-                        <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
-                    `;
-                    parentDoc.body.appendChild(divTemporal);
-                    
-                    setTimeout(function() {{
-                        window.parent.print();
-                    }}, 250);
-                </script>
-            """, height=0, width=0)
-
-        if st.session_state.imprimir_zebra_trigger:
-            st.session_state.imprimir_zebra_trigger = False
-            zpl_code = f"^XA^FO100,30^BQN,2,5^FDQA,{id_actual_str}^FS^FO100,180^A0N,30,30^FDID: {id_actual_str}^FS^FO100,220^A0N,25,25^FD{nombre_actual_str}^FS^XZ"
-            
-            st.components.v1.html(f"""
-                <script>
-                    if (typeof qz !== 'undefined' && qz.websocket.isActive()) {{
-                        var config = qz.configs.create("Zebra ZM400");
-                        var data = ['{zpl_code}'];
-                        qz.print(config, data).catch(function(e) {{ console.error(e); }});
-                    }} else {{
-                        var iframe = window.parent.parent.document.createElement('iframe');
-                        iframe.style.display = 'none';
-                        window.parent.parent.document.body.appendChild(iframe);
-                        iframe.contentWindow.document.write('{zpl_code}');
-                        iframe.contentWindow.print();
-                    }}
-                </script>
-            """, height=0, width=0)
-
-
 # ==================================================================
 # LECTURA DINÁMICA AVANZADA PARA FILTROS DE AUDITORÍA
 # ==================================================================
@@ -917,7 +529,6 @@ def formatear_rut_chileno_completo(rut_str):
         return f"{cuerpo_int:,}-{dv}".replace(",", ".")
     else:
         return f"{cuerpo}-{dv}"
-
 # ==================================================================
 # 5. ENRUTADOR DE PESTAÑAS AGRÍCOLAS REFORZADO (3 CASILLAS)
 # ==================================================================
@@ -934,37 +545,404 @@ else:
     ])
     tab_auditoria = None
 # ==================================================================
-# ALGORITMO DE VALIDACIÓN DE RUT CHILENO (INTEGRADO EN LA RAÍZ)
-# ==================================================================
-def validar_rut_chileno(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2: return False
-    cuerpo = rut_limpio[:-1]
-    dv_ingresado = rut_limpio[-1]
-    if not cuerpo.isdigit(): return False
-    suma = 0
-    multiplicador = 2
-    for c in reversed(cuerpo):
-        suma += int(c) * multiplicador
-        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
-    remat = 11 - (suma % 11)
-    dv_esperado = "0" if remat == 11 else ("K" if remat == 10 else str(remat))
-    return dv_ingresado == dv_esperado
+# 4.C FUNCIÓN ESPEJO: ENROLAMIENTO MATINAL (DISEÑO EXACTO FOTO)
+# =================================================================
+import streamlit as st
+import datetime
+import io
+import qrcode
+import zoneinfo
+import pandas as pd
 
-# ==================================================================
-# FORMATEADOR MAESTRO DE RUT DIARIO (PUNTOS Y GUION AUTOMÁTICOS)
-# ==================================================================
-def formatear_rut_chileno_completo(rut_str):
-    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
-    if len(rut_limpio) < 2:
-        return rut_limpio
-    cuerpo = rut_limpio[:-1]
-    dv = rut_limpio[-1]
-    if cuerpo.isdigit():
-        cuerpo_int = int(cuerpo)
-        return f"{cuerpo_int:,}-{dv}".replace(",", ".")
+def validar_rut_chileno_local(rut_limpio):
+    """
+    Valida matemáticamente un RUT chileno limpio (ej: '000000000').
+    Retorna True si el dígito verificador es correcto.
+    """
+    if not rut_limpio or len(rut_limpio) < 2:
+        return False
+    try:
+        cuerpo = rut_limpio[:-1]
+        dv = rut_limpio[-1].upper()
+        
+        suma = 0
+        multiplicador = 2
+        for c in reversed(cuerpo):
+            if not c.isdigit():
+                return False
+            suma += int(c) * multiplicador
+            multiplicador = 2 if multiplicador == 7 else multiplicador + 1
+            
+        dv_esperado = 11 - (suma % 11)
+        if dv_esperado == 11:
+            dv_correcto = "0"
+        elif dv_esperado == 10:
+            dv_correcto = "K"
+        else:
+            dv_correcto = str(dv_esperado)
+            
+        return dv == dv_correcto
+    except Exception:
+        return False
+
+@st.fragment
+def dibujar_teclado_enrolamiento_antivero():
+    st.html("""
+        <style>
+            .cuadro-teclado-enrol { max-width: 350px; margin: 10px auto; box-sizing: border-box; }
+            .cuadro-teclado-enrol [data-testid="stHorizontalBlock"] { flex-direction: row !important; display: flex !important; gap: 8px !important; margin-bottom: 8px !important; }
+            .cuadro-teclado-enrol div[data-testid="column"] { margin-bottom: 0 !important; }
+            
+            /* Visor Estilizado */
+            .rut-display-box {
+                color: #38bdf8 !important; font-weight: bold !important;
+                border: 1px solid #334155 !important; border-radius: 8px !important;
+                padding: 10px; text-align: center; display: flex; align-items: center; justify-content: center;
+                box-sizing: border-box;
+            }
+            
+            /* Estilo Barra Azul Horizontal de ENTER original */
+            .cuadro-teclado-enrol .barra-azul-enter-enrol button { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; height: 54px !important; }
+            .cuadro-teclado-enrol .barra-azul-enter-enrol button p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }
+        </style>
+    """)
+    
+    st.subheader("📍 Identificación de Campo (Matinal)")
+    
+    opciones_cc = list(lista_centros_costo_dinamica)
+    if "Seleccione Centro de Costo..." not in opciones_cc:
+        opciones_cc.insert(0, "Seleccione Centro de Costo...")
+        
+    opciones_contratista = list(lista_contratistas_dinamica)
+    if "Seleccione Contratista..." not in opciones_contratista:
+        opciones_contratista.insert(0, "Seleccione Contratista...")
+
+    def formatear_centro_costo(opcion):
+        if opcion == "Seleccione Centro de Costo...":
+            return opcion
+        if isinstance(opcion, dict):
+            return f"{opcion.get('nombre', 'Sin Nombre')} ({opcion.get('codigo', 'CC 00')})"
+        try:
+            docs = db.collection("config_centros_costo").where("nombre", "==", opcion).limit(1).get()
+            if docs:
+                d = docs[0].to_dict()
+                return f"{opcion} ({d.get('codigo', 'CC 00')})"
+        except Exception:
+            pass
+        return str(opcion)
+
+    def formatear_contratista(opcion):
+        if opcion == "Seleccione Contratista...":
+            return opcion
+        if isinstance(opcion, dict):
+            return f"{opcion.get('rut', '00.000.000-0')} | {opcion.get('nombre', 'Sin Nombre')} ( {opcion.get('codigo', 'xxxx')} )"
+        try:
+            docs = db.collection("config_contratistas").where("nombre", "==", opcion).limit(1).get()
+            if docs:
+                d = docs[0].to_dict()
+                return f"{d.get('rut', '00.000.000-0')} | {opcion} ( {d.get('codigo', 'xxxx')} )"
+        except Exception:
+            pass
+        return str(opcion)
+    
+    cc_manana = st.selectbox(
+        "Centro de Costo / Cuartel:",
+        options=opciones_cc,
+        index=0,
+        format_func=formatear_centro_costo,
+        key="enrol_centro_costo"
+    )
+    
+    contratista_manana = st.selectbox(
+        "Empresa / Contratista:",
+        options=opciones_contratista,
+        index=0,
+        format_func=formatear_contratista,
+        key="enrol_contratista"
+    )
+
+    st.write("")
+    st.markdown("<label>👤 RUT o Escaneo QR Cosechador</label>", unsafe_allow_html=True)
+
+    rut_ingresado_fisico = st.text_input(
+        "DIGITE O ESCANEE EL QR AQUÍ...",
+        value="",
+        key="input_unico_fisico_antivero",
+        placeholder="Ej: 12345678-9 o URL del carnet"
+    )
+
+    rut_procesar = rut_ingresado_fisico.strip()
+    nombre_extraido_qr = ""
+
+    if "run=" in rut_procesar.lower() or "rut=" in rut_procesar.lower() or "http" in rut_procesar.lower():
+        try:
+            from urllib.parse import parse_qs, urlparse
+            parsed_url = urlparse(rut_procesar)
+            query_params = parse_qs(parsed_url.query)
+            
+            for param in ["run", "rut", "RUN", "RUT"]:
+                if param in query_params:
+                    rut_procesar = query_params[param][0]
+                    break
+            
+            for param_nom in ["nombre", "nombres", "name", "NOMBRE"]:
+                if param_nom in query_params:
+                    nombre_extraido_qr = query_params[param_nom][0].replace("+", " ").title()
+                    break
+        except Exception:
+            pass
+
+    if nombre_extraido_qr and "input_nombre_operario" in st.session_state:
+        st.session_state["input_nombre_operario"] = nombre_extraido_qr
+
+    rut_crudo = "".join([c for c in rut_procesar.upper() if c.isdigit() or c == "K"])
+    
+    if len(rut_crudo) > 1:
+        cuerpo = rut_crudo[:-1]
+        dv = rut_crudo[-1]
+        cuerpo_puntos = ""
+        for i, char in enumerate(reversed(cuerpo)):
+            if i > 0 and i % 3 == 0:
+                cuerpo_puntos = "." + cuerpo_puntos
+            cuerpo_puntos = char + cuerpo_puntos
+        rut_visible = f"{cuerpo_puntos}-{dv}"
     else:
-        return f"{cuerpo}-{dv}"
+        rut_visible = rut_crudo if rut_crudo else "00.000.000-0"
+    
+    rut_es_valido = validar_rut_chileno_local(rut_crudo)
+    icono_verificacion = "✅" if rut_es_valido else "🛑"
+    
+    st.markdown('<div class="cuadro-teclado-enrol">', unsafe_allow_html=True)
+    
+    col_visor_texto, col_visor_icono = st.columns([3, 1])
+    with col_visor_texto:
+        st.markdown(f'<div class="rut-display-box" style="font-size:20px; min-height:52px; margin-bottom:0; background-color:#1e293b;">{rut_visible}</div>', unsafe_allow_html=True)
+    with col_visor_icono:
+        st.markdown(f'<div class="rut-display-box" style="font-size:24px; min-height:52px; margin-bottom:0; background-color:#1e293b; text-align:center;">{icono_verificacion}</div>', unsafe_allow_html=True)
+        
+    st.write("")
+
+    nombre_operario = st.text_input(
+        "Nombre del Operario:",
+        value="",
+        key="input_nombre_operario",
+        placeholder="Se llena automático con QR o escriba manual"
+    )
+    
+    st.write("")
+    
+    st.markdown('<div class="barra-azul-enter-enrol">', unsafe_allow_html=True)
+    bloqueo_enrol = (
+        not rut_es_valido or 
+        not nombre_operario.strip() or
+        cc_manana == "Seleccione Centro de Costo..." or 
+        contratista_manana == "Seleccione Contratista..."
+    )
+    
+    if st.button("💾 ENTER (Validar Ingreso)", key="btn_enrol_ENTER_M", use_container_width=True, disabled=bloqueo_enrol):
+        try:
+            tz_cl = zoneinfo.ZoneInfo("America/Santiago")
+            ahora_cl = datetime.datetime.now(tz_cl)
+            fecha_hoy_str = ahora_cl.strftime("%d/%m/%Y")
+            rut_limpio = rut_crudo.lower()
+            nombre_limpio = nombre_operario.strip().title()
+            
+            contratista_nombre_val = contratista_manana.get("nombre") if isinstance(contratista_manana, dict) else contratista_manana
+            contratista_rut_val = "Sin RUT"
+            contratista_codigo_val = "Sin Código"
+            
+            try:
+                docs_c = db.collection("config_contratistas").where("nombre", "==", contratista_nombre_val).limit(1).get()
+                if docs_c:
+                    d_c = docs_c[0].to_dict()
+                    contratista_rut_val = d_c.get("rut", "Sin RUT")
+                    contratista_codigo_val = d_c.get("codigo", "Sin Código")
+            except Exception:
+                pass
+
+            duplicados = db.collection("credenciales_activas_dia")\
+                .where("RutCosechador", "==", rut_limpio)\
+                .limit(1).get()
+                
+            if duplicados:
+                datos_existentes = duplicados[0].to_dict()
+                id_existente = datos_existentes.get("id_express")
+                nombre_registrado = datos_existentes.get("NombreCosechador", nombre_limpio)
+                st.warning(f"⚠️ El operario {nombre_registrado} (RUT {rut_visible}) ya cuenta con la Ficha #{id_existente} asignada previamente. Se recupera su credencial.")
+                
+                qr = qrcode.QRCode(version=1, box_size=8, border=1)
+                qr.add_data(str(id_existente))
+                qr.make(fit=True)
+                buf = io.BytesIO()
+                qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+                
+                st.session_state.qr_render_actual = buf.getvalue()
+                st.session_state.id_render_actual = id_existente
+                st.session_state.nombre_render_actual = nombre_registrado
+                st.rerun()
+            
+            ya_enrolados = db.collection("credenciales_activas_dia").stream()
+            numeros_ocupados = [int(doc.to_dict().get("id_express")) for doc in ya_enrolados if doc.to_dict().get("id_express")]
+            
+            id_express = 100
+            for num in range(100, 201):
+                if num not in numeros_ocupados:
+                    id_express = num
+                    break
+                
+            codigo_largo_auditoria = f"{ahora_cl.strftime('%d/%m/%Y')}-{rut_limpio}-{id_express}"
+            cc_valor = cc_manana.get("nombre") if isinstance(cc_manana, dict) else cc_manana
+
+            db.collection("credenciales_activas_dia").document(str(id_express)).set({
+                "id_express": str(id_express),
+                "RutCosechador": rut_limpio,
+                "NombreCosechador": nombre_limpio,
+                "CentroCosto": cc_valor,
+                "Contratista": contratista_nombre_val,
+                "RutContratista": contratista_rut_val,
+                "CodigoContratista": contratista_codigo_val,
+                "CodigoLargoAuditoria": codigo_largo_auditoria,
+                "FechaEnrolamiento": ahora_cl,
+                "FechaFiltro": fecha_hoy_str
+            })
+            
+            qr = qrcode.QRCode(version=1, box_size=8, border=1)
+            qr.add_data(str(id_express))
+            qr.make(fit=True)
+            
+            buf = io.BytesIO()
+            qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+            
+            st.session_state.qr_render_actual = buf.getvalue()
+            st.session_state.id_render_actual = id_express
+            st.session_state.nombre_render_actual = nombre_limpio
+            st.rerun()
+        except Exception as ex:
+            st.error(f"❌ Error en el enrolamiento: {ex}")
+            
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    qr_activo = st.session_state.get("qr_render_actual", None)
+    if "imprimir_zebra_trigger" not in st.session_state:
+        st.session_state.imprimir_zebra_trigger = False
+    if "imprimir_windows_trigger" not in st.session_state:
+        st.session_state.imprimir_windows_trigger = False
+        
+    if qr_activo:
+        st.write("")
+        import base64
+        qr_b64 = base64.b64encode(qr_activo).decode("utf-8")
+        id_actual_str = str(st.session_state.get("id_render_actual", ""))
+        nombre_actual_str = str(st.session_state.get("nombre_render_actual", ""))
+        
+        with st.container(border=True):
+            col_ticket_qr, col_ticket_btn = st.columns([1.3, 1.7])
+            with col_ticket_qr:
+                st.image(qr_activo, caption=f"Ficha #{id_actual_str}\n{nombre_actual_str}", width=150)
+            with col_ticket_btn:
+                st.write("### Opciones de Impresión")
+                
+                if st.button("🚀 IMPRESIÓN DIRECTA (ZEBRA ZM400)", key="btn_print_zebra", use_container_width=True, type="primary"):
+                    st.session_state.imprimir_zebra_trigger = True
+                    st.rerun()
+                    
+                if st.button("🖨️ IMPRIMIR CON WINDOWS (Elegir...)", key="btn_print_windows", use_container_width=True):
+                    st.session_state.imprimir_windows_trigger = True
+                    st.rerun()
+                    
+                if st.button("🗑️ Siguiente Operario", key="clear_qr_view", use_container_width=True):
+                    st.session_state.qr_render_actual = None
+                    st.session_state.id_render_actual = None
+                    st.session_state.nombre_render_actual = None
+                    st.session_state.imprimir_zebra_trigger = False
+                    st.session_state.imprimir_windows_trigger = False
+                    st.rerun()
+                    
+        if st.session_state.imprimir_windows_trigger:
+            st.session_state.imprimir_windows_trigger = False
+            
+            st.components.v1.html(f"""
+                <div id="ticket-imprimible-exclusivo" style="text-align: center; font-family: sans-serif; background: #ffffff !important; color: #000000 !important; padding: 20px; position: fixed; left: -9999px;">
+                    <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
+                    <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
+                    <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
+                    <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
+                </div>
+                
+                <script>
+                    const parentDoc = window.parent.document;
+                    
+                    const viejoEstilo = parentDoc.getElementById("estilo-impresion-dinamico");
+                    if (viejoEstilo) viejoEstilo.remove();
+                    
+                    const viejoContenedor = parentDoc.getElementById("ticket-imprimible-exclusivo");
+                    if (viejoContenedor) viejoContenedor.remove();
+                    
+                    var estilo = parentDoc.createElement('style');
+                    estilo.id = "estilo-impresion-dinamico";
+                    estilo.innerHTML = `
+                        @media print {{
+                            html, body, [data-testid="stAppViewContainer"] {{
+                                background-color: #ffffff !important;
+                                color: #000000 !important;
+                                background: #ffffff !important;
+                            }}
+                            body * {{ 
+                                visibility: hidden !important; 
+                            }}
+                            #ticket-imprimible-exclusivo, #ticket-imprimible-exclusivo * {{ 
+                                visibility: visible !important; 
+                            }}
+                            #ticket-imprimible-exclusivo {{ 
+                                position: absolute !important; 
+                                left: 0 !important; 
+                                top: 0 !important; 
+                                width: 100% !important; 
+                                text-align: center !important; 
+                                background: #ffffff !important;
+                                display: block !important;
+                            }}
+                        }}
+                    `;
+                    parentDoc.head.appendChild(estilo);
+                    
+                    var divTemporal = parentDoc.createElement('div');
+                    divTemporal.id = "ticket-imprimible-exclusivo";
+                    divTemporal.style.cssText = "position:absolute; left:0; top:0; width:100%; text-align:center; background:#ffffff; z-index:999999; display:none;";
+                    divTemporal.innerHTML = `
+                        <h3 style="margin-top: 0px; margin-bottom: 5px; font-size: 16px; color: #000000 !important;">Flores Antivero Cosecha</h3>
+                        <img src="data:image/png;base64,{qr_b64}" style="width: 180px; height: 180px;" />
+                        <h2 style="margin-top: 10px; margin-bottom: 2px; font-size: 26px; color: #000000 !important;">FICHA #{id_actual_str}</h2>
+                        <div style="font-size: 20px; font-weight: bold; color: #000000 !important; margin-top: 5px;">{nombre_actual_str}</div>
+                    `;
+                    parentDoc.body.appendChild(divTemporal);
+                    
+                    setTimeout(function() {{
+                        window.parent.print();
+                    }}, 250);
+                </script>
+            """, height=0, width=0)
+
+        if st.session_state.imprimir_zebra_trigger:
+            st.session_state.imprimir_zebra_trigger = False
+            zpl_code = f"^XA^FO100,30^BQN,2,5^FDQA,{id_actual_str}^FS^FO100,180^A0N,30,30^FDID: {id_actual_str}^FS^FO100,220^A0N,25,25^FD{nombre_actual_str}^FS^XZ"
+            
+            st.components.v1.html(f"""
+                <script>
+                    if (typeof qz !== 'undefined' && qz.websocket.isActive()) {{
+                        var config = qz.configs.create("Zebra ZM400");
+                        var data = ['{zpl_code}'];
+                        qz.print(config, data).catch(function(e) {{ console.error(e); }});
+                    }} else {{
+                        var iframe = window.parent.parent.document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        window.parent.parent.document.body.appendChild(iframe);
+                        iframe.contentWindow.document.write('{zpl_code}');
+                        iframe.contentWindow.print();
+                    }}
+                </script>
+            """, height=0, width=0)
 
 # --- CONTENIDO DE LA PESTAÑA CENTRAL: REGISTRO DE CREDENCIALES ---
 with tab_credenciales:
@@ -974,6 +952,7 @@ with tab_credenciales:
     col_enrol_izq, col_enrol_der = st.columns([1.3, 2.7])
     with col_enrol_izq:
         dibujar_teclado_enrolamiento_antivero()
+        
     with col_enrol_der:
         st.markdown("### 📷 Escáner QR de Cédula de Identidad (Mesón)")
         st.caption("Enfoque el código QR del carnet (reverso). El sistema procesará el RUT de forma automática:")
@@ -981,7 +960,6 @@ with tab_credenciales:
         # 🚀 INYECCIÓN HTML5 WEBRTC DIRECTA CON AUTOENFOQUE CONTINUO CRÍTICO 🚀
         import streamlit.components.v1 as components
         components.html("""
-                        
         <div style="background-color: #1e293b; padding: 12px; border-radius: 10px; border: 1px solid #334155; font-family: sans-serif; color: #f8fafc; text-align: center;">
             <p style="margin-top:0; font-size:14px; color:#94a3b8;">Lector QR Directo por Cámara (Enfoque Continuo)</p>
             <video id="video-stream-matinal" style="width: 100%; max-width: 320px; height: auto; border-radius: 8px; background:#0f172a;" autoplay playsinline></video>
@@ -993,7 +971,6 @@ with tab_credenciales:
             const statusDiv = document.getElementById('status-lector-qr');
             let trackActivo = null;
             
-            // 🧠 RESOLUCIÓN OPTIMIZADA: 640x480 reduce la distorsión y facilita el enfoque macro en Android
             navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
             })
@@ -1002,7 +979,6 @@ with tab_credenciales:
                 video.setAttribute("playsinline", true);
                 video.play();
                 
-                // 🧠 CONSTREÑIMIENTO DE ENFOQUE CONTINUO NATIVO
                 trackActivo = stream.getVideoTracks()[0];
                 setTimeout(() => {
                     const capabilities = trackActivo.getCapabilities ? trackActivo.getCapabilities() : {};
@@ -1013,7 +989,7 @@ with tab_credenciales:
                     if (Object.keys(constraints).length > 0) {
                         trackActivo.applyConstraints({ advanced: [constraints] }).catch(e => console.log(e));
                     }
-                }, 500); // Pequeño retraso para dar tiempo a la inicialización del sensor
+                }, 500);
                 
                 requestAnimationFrame(tick);
             }).catch(function(err) {
@@ -1046,16 +1022,13 @@ with tab_credenciales:
         </script>
         """, height=340)
 
-
-        # 🚀 OÍDOR DE EVENTOS EN PYTHON: Atrapa el RUT enviado por JavaScript y actualiza la app
+        # 🚀 OÍDOR DE EVENTOS EN PYTHON: Atrapa el RUT enviado por JavaScript
         st.html("""
         <script>
             window.addEventListener('message', function(e) {
                 if (e.data && e.data.type === 'ANTIVERO_QR_CARNET') {
-                    // Buscamos la caja de texto del RUT matinal en la columna izquierda y le inyectamos el valor
                     const inputs = window.parent.document.querySelectorAll('input');
                     inputs.forEach(input => {
-                        // Buscamos el widget asociado a la clave de la mañana
                         if (input.getAttribute('aria-label') && input.getAttribute('aria-label').includes('RUT')) {
                             input.value = e.data.rut;
                             input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1066,71 +1039,125 @@ with tab_credenciales:
         </script>
         """)
 
+        st.write("---")
+        
+        # ==================================================================
+        # TABLA EDITABLE ÚNICA (Ubicada exactamente en la columna derecha)
+        # ==================================================================
+        st.subheader("📋 Listado de Enrolados del Día (Modificable)")
+        st.caption("Modifique los campos directamente en la tabla y presione el botón inferior para guardar los cambios en Firebase.")
 
-# --- TABLA DE CONTROL EN VIVO DE CREDENCIALE S---
         try:
-            # Consultamos todos los documentos sin filtrar por fecha ni centro de costo
-            docs_enrolados = db.collection("credenciales_activas_dia").stream()
-            lista_enrolados_dia = [doc.to_dict() for doc in docs_enrolados]
-            
-            if lista_enrolados_dia:
-                df_enrolados = pd.DataFrame(lista_enrolados_dia)
-                import __main__ as main
-                if "RutCosechador" in df_enrolados.columns and hasattr(main, "formatear_rut_chileno_completo"):
-                    df_enrolados["RutCosechador"] = df_enrolados["RutCosechador"].apply(main.formatear_rut_chileno_completo)
+            docs_registros = db.collection("credenciales_activas_dia").stream()
+            lista_docs = []
+            for d in docs_registros:
+                row_data = d.to_dict()
+                row_data["doc_id"] = d.id  
+                lista_docs.append(row_data)
+
+            if lista_docs:
+                df_enrolados = pd.DataFrame(lista_docs)
                 
-                columnas_asistencia = ["id_express", "RutCosechador", "CentroCosto", "CodigoLargoAuditoria"]
-                df_asistencia_render = df_enrolados[columnas_asistencia].sort_values(by="id_express")
+                columnas_ordenadas = [
+                    "id_express", 
+                    "NombreCosechador", 
+                    "RutCosechador", 
+                    "Contratista", 
+                    "RutContratista", 
+                    "CodigoContratista", 
+                    "CentroCosto"
+                ]
                 
-                # 1. TABLA FLUIDA Y ESTABLE (CERO RECARGAS FANTASMAS)
-                st.dataframe(df_asistencia_render, use_container_width=True, hide_index=True)
-                
-                # 🚀 Declaramos la lista de IDs disponibles directo desde los datos de Firebase 🚀
-                lista_ids_hoy = [str(x) for x in df_asistencia_render["id_express"].tolist()]
-                
-                # 🚀 REGENERADOR INDEPENDIENTE LIBRE DE RESTRICCIONES DE FECHA
-                st.write("")
-                st.markdown("<h4 style='color:#38bdf8;'>🖨️ Módulo de Reimpresión de Fichas Extraviadas</h4>", unsafe_allow_html=True)
-                
-                id_a_recuperar = st.text_input(
-                    "Digite el número de ID Express a recuperar (Ej: 105):",
-                    placeholder="Escriba el número aquí...",
-                    key="input_recuperador_manual_express"
-                ).strip()
-                
-                if st.button("🔄 Regenerar y Cargar QR a la Izquierda", key="btn_ejecutar_reimpresion_limpio", use_container_width=True):
-                    if id_a_recuperar:
-                        try:
-                            # Buscar directamente en la colección por ID
-                            doc_ref = db.collection("credenciales_activas_dia").document(id_a_recuperar).get()
+                for col in columnas_ordenadas:
+                    if col not in df_enrolados.columns:
+                        df_enrolados[col] = ""
+
+                df_display = df_enrolados[columnas_ordenadas + ["doc_id"]].copy()
+
+                df_editado = st.data_editor(
+                    df_display,
+                    column_config={
+                        "doc_id": None, 
+                        "id_express": st.column_config.TextColumn("ID Ficha", disabled=True),
+                        "NombreCosechador": st.column_config.TextColumn("Nombre Operario"),
+                        "RutCosechador": st.column_config.TextColumn("RUT Operario"),
+                        "Contratista": st.column_config.TextColumn("Nombre Contratista"),
+                        "RutContratista": st.column_config.TextColumn("RUT Contratista"),
+                        "CodigoContratista": st.column_config.TextColumn("Código Contratista"),
+                        "CentroCosto": st.column_config.TextColumn("Centro de Costo")
+                    },
+                    hide_index=True,
+                    key="tabla_enrolados_editable_derecha_principal"
+                )
+
+                if st.button("💾 Guardar Cambios Modificados en Firebase", key="btn_guardar_cambios_tabla_derecha", type="primary"):
+                    try:
+                        batch = db.batch()
+                        for index, row in df_editado.iterrows():
+                            doc_id = str(row["doc_id"])
+                            doc_ref = db.collection("credenciales_activas_dia").document(doc_id)
                             
-                            if doc_ref.exists:
-                                datos_credencial = doc_ref.to_dict()
-                                nombre_encontrado = datos_credencial.get("NombreCosechador", "Sin Nombre")
-                                
-                                qr_reimp = qrcode.QRCode(version=1, box_size=8, border=1)
-                                qr_reimp.add_data(str(id_a_recuperar))
-                                qr_reimp.make(fit=True)
-                                
-                                buf_reimp = io.BytesIO()
-                                qr_reimp.make_image(fill_color="black", back_color="white").save(buf_reimp, format="PNG")
-                                
-                                st.session_state.qr_render_actual = buf_reimp.getvalue()
-                                st.session_state.id_render_actual = id_a_recuperar
-                                st.session_state.nombre_render_actual = nombre_encontrado
-                                
-                                st.toast(f"🎟️ Ficha #{id_a_recuperar} de {nombre_encontrado} cargada con éxito a la izquierda.")
-                                st.rerun()
-                            else:
-                                st.error(f"❌ El ID #{id_a_recuperar} no existe registrado en la base de datos.")
-                        except Exception as e_reimp:
-                            st.error(f"❌ Error al reconstruir el código QR: {e_reimp}")
-                    else:
-                        st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
+                            actualizacion = {
+                                "NombreCosechador": str(row["NombreCosechador"]),
+                                "RutCosechador": str(row["RutCosechador"]),
+                                "Contratista": str(row["Contratista"]),
+                                "RutContratista": str(row["RutContratista"]),
+                                "CodigoContratista": str(row["CodigoContratista"]),
+                                "CentroCosto": str(row["CentroCosto"])
+                            }
+                            batch.update(doc_ref, actualizacion)
+                        
+                        batch.commit()
+                        st.success("✅ ¡Los cambios se han actualizado y guardado correctamente en Firebase!")
+                    except Exception as e_firebase:
+                        st.error(f"❌ Error al guardar en Firebase: {e_firebase}")
             else:
-                st.info("📝 No hay operarios matriculados.")
-        except Exception as e_t:
-            st.caption(f"Nota de visualización de asistencia: {e_t}")
+                st.info("No hay registros de enrolamiento activos para mostrar en la tabla.")
+        except Exception as e_load:
+            st.error(f"Error al cargar registros desde la base de datos: {e_load}")
+
+        st.write("---")
+
+        # ==================================================================
+        # MÓDULO DE REIMPRESIÓN DE FICHAS EXTRAVIADAS
+        # ==================================================================
+        st.markdown("<h4 style='color:#38bdf8;'>🖨️ Módulo de Reimpresión de Fichas Extraviadas</h4>", unsafe_allow_html=True)
+        
+        id_a_recuperar = st.text_input(
+            "Digite el número de ID Express a recuperar (Ej: 105):",
+            placeholder="Escriba el número aquí...",
+            key="input_recuperador_manual_express"
+        ).strip()
+        
+        if st.button("🔄 Regenerar y Cargar QR a la Izquierda", key="btn_ejecutar_reimpresion_limpio", use_container_width=True):
+            if id_a_recuperar:
+                try:
+                    doc_ref = db.collection("credenciales_activas_dia").document(id_a_recuperar).get()
+                    
+                    if doc_ref.exists:
+                        datos_credencial = doc_ref.to_dict()
+                        nombre_encontrado = datos_credencial.get("NombreCosechador", "Sin Nombre")
+                        
+                        qr_reimp = qrcode.QRCode(version=1, box_size=8, border=1)
+                        qr_reimp.add_data(str(id_a_recuperar))
+                        qr_reimp.make(fit=True)
+                        
+                        buf_reimp = io.BytesIO()
+                        qr_reimp.make_image(fill_color="black", back_color="white").save(buf_reimp, format="PNG")
+                        
+                        st.session_state.qr_render_actual = buf_reimp.getvalue()
+                        st.session_state.id_render_actual = id_a_recuperar
+                        st.session_state.nombre_render_actual = nombre_encontrado
+                        
+                        st.toast(f"🎟️ Ficha #{id_a_recuperar} de {nombre_encontrado} cargada con éxito a la izquierda.")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ El ID #{id_a_recuperar} no existe registrado en la base de datos.")
+                except Exception as e_reimp:
+                    st.error(f"❌ Error al reconstruir el código QR: {e_reimp}")
+            else:
+                st.warning("⚠️ Por favor, ingrese un número de ID express válido antes de presionar el botón.")
+
 # --- CONTENIDO DE LA PESTAÑA A: TERMINAL DE COSECHA AGRÍCOLA ---
 with tab_terminal:
     # Inicialización segura de estados para el Mesón si no existen
@@ -1934,7 +1961,7 @@ with tab_auditoria:
 
         columnas_vista = [
             "fecha", "rut op.", "nombre op.", "huerto", "sku huerto", 
-            "cont.", "rut cont.", "sku c.", "c.c.", "sku c.c.", 
+            "cont.", "rut cont.", "sku c.", "U.N.", "sku U.N.", 
             "familia flor", "variedad", "sku flor", "v."
         ]
         
@@ -1997,8 +2024,8 @@ with tab_auditoria:
                                 "contratista_nombre": str(row.get("cont.", "")).strip(),
                                 "rut_contratista": str(row.get("rut cont.", "")).strip(),
                                 "codigo_contratista": str(row.get("sku c.", "")).strip(),
-                                "centro_costo": str(row.get("c.c.", "")).strip(),
-                                "codigo_centro_costo": str(row.get("sku c.c.", "")).strip(),
+                                "centro_costo": str(row.get("U.N.", "")).strip(),
+                                "codigo_centro_costo": str(row.get("sku U.N.", "")).strip(),
                                 "familia_flor": familia_actualizada,
                                 "variedad_flor": str(row.get("variedad", "")).strip(),
                                 "codigo_flor": str(row.get("sku flor", "")).strip(),
@@ -2069,7 +2096,7 @@ with tab_auditoria:
                     df_kame["SKU"] = df_source.get("codigo_flor", df_source.get("sku flor", "")).values
                 
                     # Nombre Unidad de Negocio: se obtiene de centro_costo
-                    df_kame["Nombre Unidad de Negocio"] = df_source.get("centro_costo", df_source.get("c.c.", "")).values
+                    df_kame["Nombre Unidad de Negocio"] = df_source.get("centro_costo", df_source.get("U.N.", "")).values
                 
                     # Cantidad: se obtiene de cantidad_varas
                     col_vara_key = "cantidad_varas" if "cantidad_varas" in df_source.columns else ("v." if "v." in df_source.columns else df_source.columns[-1])
@@ -2131,7 +2158,7 @@ with tab_auditoria:
                     fechas_unicas = df_fuente["fecha"].unique() if "fecha" in df_fuente.columns else []
                     str_fecha = str(fechas_unicas[0]) if len(fechas_unicas) == 1 else "Todas las fechas"
                     
-                    ccs_unicos = df_fuente["c.c."].unique() if "c.c." in df_fuente.columns else []
+                    ccs_unicos = df_fuente["U.N."].unique() if "U.N." in df_fuente.columns else []
                     str_origen = ccs_unicos[0] if len(ccs_unicos) == 1 else "Todos los orígenes"
 
                     # Recuperar el Origen del Huerto para mostrarlo claramente en el voucher impreso

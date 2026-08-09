@@ -1240,36 +1240,27 @@ with tab_terminal:
                     try:
                         id_num = int(id_final_a_procesar)
                         if 100 <= id_num <= 250:
-                            import datetime
-                            import zoneinfo
-                            
-                            tz_cl = zoneinfo.ZoneInfo("America/Santiago")
-                            fecha_hoy_str = datetime.datetime.now(tz_cl).strftime("%d/%m/%Y")
-                            
                             doc_ref = db.collection("credenciales_activas_dia").document(str(id_num)).get()
                             
                             if doc_ref.exists:
                                 datos_operario = doc_ref.to_dict()
                                 
-                                if datos_operario.get("FechaFiltro") == fecha_hoy_str:
-                                    rut_raw = datos_operario.get("RutCosechador", "")
-                                    rut_encontrado = str(rut_raw).strip().upper()
-                                    
-                                    cc_encontrado = datos_operario.get("CentroCosto", "CC_TERRENO")
-                                    contratista_encontrado = datos_operario.get("Contratista", "INDEPENDIENTE")
+                                rut_raw = datos_operario.get("RutCosechador", "")
+                                rut_encontrado = str(rut_raw).strip().upper()
+                                
+                                cc_encontrado = datos_operario.get("CentroCosto", "CC_TERRENO")
+                                contratista_encontrado = datos_operario.get("Contratista", "INDEPENDIENTE")
 
-                                    st.session_state.rut_cosechador = rut_encontrado
-                                    st.session_state.id_express_cosecha = str(id_num)
-                                    st.session_state.cc_activo_meson = str(cc_encontrado)
-                                    st.session_state.contratista_activo_meson = str(contratista_encontrado)
-                                    
-                                    st.session_state.rut_bloqueado_operacion = False
-                                    st.toast(f"✅ Ficha #{id_num} cargada con éxito.", icon="👤")
-                                    st.rerun()
-                                else:
-                                    st.error("🛑 Ficha pertenece a una fecha anterior.")
+                                st.session_state.rut_cosechador = rut_encontrado
+                                st.session_state.id_express_cosecha = str(id_num)
+                                st.session_state.cc_activo_meson = str(cc_encontrado)
+                                st.session_state.contratista_activo_meson = str(contratista_encontrado)
+                                
+                                st.session_state.rut_bloqueado_operacion = False
+                                st.toast(f"✅ Ficha #{id_num} cargada con éxito.", icon="👤")
+                                st.rerun()
                             else:
-                                st.error("⚠️ Ficha Express no registrada en el día.")
+                                st.error("⚠️ Ficha Express no registrada en el sistema.")
                     except Exception as e:
                         st.error(f"Error en validación: {e}")
 

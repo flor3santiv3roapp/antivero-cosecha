@@ -1850,7 +1850,7 @@ with tab_auditoria:
         filtro_rut_cosechador = st.text_input("🔍 RUT COSECHADOR:", placeholder="Ej: 123456789", key="input_rut_audit")
         filtro_rut = filtro_rut_cosechador
 
-    # 2. El Botón de Ejecutar Búsqueda en la Nube
+# 2. El Botón de Ejecutar Búsqueda en la Nube
     if st.button("🚀 Ejecutar Búsqueda en la Nube", key="btn_ejecutar_busqueda_nube"):
         try:
             ref_cosecha = db.collection("cosecha_diaria")
@@ -1858,6 +1858,29 @@ with tab_auditoria:
             import zoneinfo
             tz_local = zoneinfo.ZoneInfo("America/Santiago")
             
+            ruts_permitidos_por_id = []
+            nombres_permitidos_por_id = []
+            id_buscado_str = filtro_id_express.strip()
+            
+            if id_buscado_str:
+                try:
+                    # Como el ID del documento en Firestore es el ID express (ej: '100', '102')
+                    doc_cred = db.collection("credenciales_activas_dia").document(id_buscado_str).get()
+                    
+                    if doc_cred.exists:
+                        c_data = doc_cred.to_dict()
+                        # Soportamos tanto minúsculas como las mayúsculas que muestra tu captura (RutCosechador, NombreCosechador)
+                        rut_encontrado = c_data.get("rut_cosechador", c_data.get("RutCosechador", ""))
+                        nombre_encontrado = c_data.get("nombre_cosechador", c_data.get("NombreCosechador", ""))
+                        
+                        if rut_encontrado:
+                            ruts_permitidos_por_id.append(str(rut_encontrado).strip().replace(".", "").replace("-", "").lower())
+                        if nombre_encontrado:
+                            nombres_permitidos_por_id.append(str(nombre_encontrado).strip().lower())
+                except Exception as e_cred:
+                    st.warning(f"⚠️ No se pudo consultar la credencial directamente: {e_cred}")
+
+            # --- CONSULTA DE FECHAS EN COSECHA DIARIA ---
             if not ignorar_fecha:
                 inicio_dia = datetime.datetime.combine(filtro_fecha, datetime.time.min, tzinfo=tz_local)
                 fin_dia = datetime.datetime.combine(filtro_fecha, datetime.time.max, tzinfo=tz_local)
@@ -1871,12 +1894,30 @@ with tab_auditoria:
             for d in docs_cosecha:
                 r_dict = d.to_dict()
                 r_dict["id_documento_firebase"] = d.id
+                
+                # Si se ingresó ID Express, filtramos por el RUT o Nombre hallado en esa credencial
+                if id_buscado_str:
+                    if not ruts_permitidos_por_id and not nombres_permitidos_por_id:
+                        continue 
+                        
+                    rut_reg = str(r_dict.get("rut_cosechador", "")).replace(".", "").replace("-", "").lower()
+                    nombre_reg = str(r_dict.get("nombre_cosechador", "")).strip().lower()
+                    
+                    match_rut = rut_reg in ruts_permitidos_por_id if ruts_permitidos_por_id else False
+                    match_nombre = any(n in nombre_reg for n in nombres_permitidos_por_id) if nombres_permitidos_por_id else False
+                    
+                    if not (match_rut or match_nombre):
+                        continue
+                
                 registros_lista.append(r_dict)
                 
+            if id_buscado_str and not ruts_permitidos_por_id and not nombres_permitidos_por_id:
+                st.warning(f"⚠️ El ID Express '{id_buscado_str}' no existe como documento en la colección 'credenciales_activas_dia'.")
+
             if registros_lista:
                 df_auditoria = pd.DataFrame(registros_lista)
                 
-                # --- APLICACIÓN DE FILTROS EN MEMORIA ---
+                # --- APLICACIÓN DE RESTO DE FILTROS EN MEMORIA ---
                 if not ignorar_cc and cc_seleccionado_filtro != "Todos":
                     nombre_cc_buscado = cc_seleccionado_filtro.split("(")[0].strip().lower()
                     if "centro_costo" in df_auditoria.columns:
@@ -1897,12 +1938,6 @@ with tab_auditoria:
                     if "rut_cosechador" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["rut_cosechador"].str.replace("-", "").str.lower() == rut_buscado_limpio]
                 
-                # Filtro ID Express
-                if filtro_id_express.strip():
-                    id_buscado = filtro_id_express.strip().lower()
-                    if "id_documento_firebase" in df_auditoria.columns:
-                        df_auditoria = df_auditoria[df_auditoria["id_documento_firebase"].str.lower().str.contains(id_buscado)]
-                
                 if filtro_tipo_registro == "Solo Merma":
                     if "es_merma" in df_auditoria.columns:
                         df_auditoria = df_auditoria[df_auditoria["es_merma"] == True]
@@ -1921,7 +1956,8 @@ with tab_auditoria:
                     else:
                         df_auditoria["fecha"] = ""
 
-                    # Formateo visual con nombres compactos
+                    # Formateo visual
+                    df_auditoria["id doc"] = df_auditoria.get("id_documento_firebase", "n/a")
                     df_auditoria["rut op."] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
                     df_auditoria["nombre op."] = df_auditoria.get("nombre_cosechador", "n/a")
                     df_auditoria["huerto"] = df_auditoria.get("origen_huerto", "n/a")
@@ -1933,22 +1969,21 @@ with tab_auditoria:
                     df_auditoria["sku U.N."] = df_auditoria.get("codigo_centro_costo", "n/a")
                     df_auditoria["familia flor"] = df_auditoria.get("familia_flor", "n/a")
                     df_auditoria["variedad"] = df_auditoria.get("variedad_flor", "n/a")
-                    df_auditoria["sku flor"] = df_auditoria.get("codigo_flor", "n/a")
+                    df_auditoria["sku flor"]  = df_auditoria.get("codigo_flor", "n/a")
                     df_auditoria["v."] = df_auditoria.get("cantidad_varas", 0).astype(int)
                     df_auditoria["es_merma_bool"] = df_auditoria.get("es_merma", False)
 
-                    # 💾 GUARDAMOS EL RESULTADO EN MEMORIA DE SESIÓN
                     st.session_state["df_auditoria_activo"] = df_auditoria
                 else:
                     st.session_state["df_auditoria_activo"] = None
-                    st.info("📝 No se encontraron registros con los filtros aplicados.")
+                    st.info("📝 No se encontraron registros que cumplan con todos los filtros combinados.")
             else:
                 st.session_state["df_auditoria_activo"] = None
-                st.info("📝 No hay registros históricos en la base de datos.")
+                st.info("📝 No hay registros históricos disponibles para esta consulta.")
                 
         except Exception as e_error_auditoria:
             st.error(f"❌ Error en consulta Firebase: {e_error_auditoria}")
-
+            
 # 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
@@ -1962,7 +1997,7 @@ with tab_auditoria:
         st.session_state["df_auditoria_activo"] = df_ver
 
         columnas_vista = [
-            "fecha", "rut op.", "nombre op.", "huerto", "sku huerto", 
+            "id doc", "fecha", "rut op.", "nombre op.", "huerto", "sku huerto", 
             "cont.", "rut cont.", "sku c.", "U.N.", "sku U.N.", 
             "familia flor", "variedad", "sku flor", "v."
         ]
@@ -1979,7 +2014,7 @@ with tab_auditoria:
             df_ver[cols_presentes], 
             use_container_width=True, 
             hide_index=True,
-            disabled=["fecha"], 
+            disabled=["id doc","fecha"], 
             height=altura_calculada,
             key="editor_tabla_auditoria"
         )

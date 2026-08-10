@@ -1957,7 +1957,6 @@ with tab_auditoria:
                         df_auditoria["fecha"] = ""
 
                     # Formateo visual
-                    df_auditoria["id doc"] = df_auditoria.get("id_documento_firebase", "n/a")
                     df_auditoria["rut op."] = df_auditoria.get("rut_cosechador", "n/a").str.upper()
                     df_auditoria["nombre op."] = df_auditoria.get("nombre_cosechador", "n/a")
                     df_auditoria["huerto"] = df_auditoria.get("origen_huerto", "n/a")
@@ -1983,7 +1982,7 @@ with tab_auditoria:
                 
         except Exception as e_error_auditoria:
             st.error(f"❌ Error en consulta Firebase: {e_error_auditoria}")
-            
+
 # 3. 🔄 RENDERIZADO DEL EDITOR INTERACTIVO DE DATOS
     if st.session_state.get("df_auditoria_activo") is not None:
         df_ver = st.session_state["df_auditoria_activo"]
